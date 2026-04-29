@@ -1,0 +1,136 @@
+/* =========================================================
+   SERIBLAST — Lógica global del sitio
+   - Navbar con efecto scroll
+   - Menú móvil
+   - Animaciones fade-in al hacer scroll
+   - FAQ acordeón
+   - Filtros de galería
+   ========================================================= */
+
+// === Configuración global ===
+// IMPORTANTE: Cambia este número por el WhatsApp Business real (sin + ni espacios)
+// Formato internacional: 52 (México) + 10 dígitos
+window.SERIBLAST_CONFIG = {
+  whatsapp: '5215580530887', // 52 + 1 + 5580530887
+  whatsappDisplay: '+52 1 55 8053 0887',
+  email: 'ventas@seriblast.com',
+  empresa: 'Seriblast'
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  initNavbar();
+  initMenuToggle();
+  initScrollAnimations();
+  initFAQ();
+  initGalleryFilters();
+  initWhatsAppLinks();
+});
+
+/* ============= NAVBAR SCROLL ============= */
+function initNavbar() {
+  const navbar = document.querySelector('.navbar');
+  if (!navbar) return;
+
+  const onScroll = () => {
+    if (window.scrollY > 30) {
+      navbar.classList.add('scrolled');
+    } else {
+      navbar.classList.remove('scrolled');
+    }
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
+
+/* ============= MENÚ MÓVIL ============= */
+function initMenuToggle() {
+  const toggle = document.querySelector('.menu-toggle');
+  const links = document.querySelector('.nav-links');
+  if (!toggle || !links) return;
+
+  toggle.addEventListener('click', () => {
+    links.classList.toggle('open');
+  });
+
+  // cerrar al hacer click en un link
+  links.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', () => links.classList.remove('open'));
+  });
+}
+
+/* ============= ANIMACIONES FADE-IN ============= */
+function initScrollAnimations() {
+  const elements = document.querySelectorAll('.fade-in');
+  if (!elements.length) return;
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -50px 0px' });
+
+  elements.forEach(el => observer.observe(el));
+}
+
+/* ============= FAQ ACORDEÓN ============= */
+function initFAQ() {
+  document.querySelectorAll('.faq-item').forEach(item => {
+    const q = item.querySelector('.faq-question');
+    if (!q) return;
+    q.addEventListener('click', () => {
+      const wasOpen = item.classList.contains('open');
+      // cierra todos
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if (!wasOpen) item.classList.add('open');
+    });
+  });
+}
+
+/* ============= FILTROS DE GALERÍA ============= */
+function initGalleryFilters() {
+  const buttons = document.querySelectorAll('.filter-btn');
+  const items = document.querySelectorAll('.gallery-item');
+  if (!buttons.length) return;
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const filter = btn.dataset.filter;
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      items.forEach(item => {
+        if (filter === 'all' || item.dataset.cat === filter) {
+          item.style.display = 'grid';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+  });
+}
+
+/* ============= LINKS DE WHATSAPP ============= */
+function initWhatsAppLinks() {
+  const num = window.SERIBLAST_CONFIG.whatsapp;
+  document.querySelectorAll('[data-wa]').forEach(el => {
+    const tipo = el.dataset.wa || 'general';
+    const mensajes = {
+      general: 'Hola Seriblast, me gustaría más información sobre sus servicios.',
+      cotizacion: 'Hola Seriblast, necesito una cotización personalizada.',
+      diseno: 'Hola Seriblast, me interesa el servicio de diseño gráfico.',
+      laser: 'Hola Seriblast, me interesa el servicio de grabado láser.',
+      sandblast: 'Hola Seriblast, me interesa el servicio de grabado en sandblast.',
+      vitrificado: 'Hola Seriblast, me interesa el servicio de vitrificado.',
+      dtf_textil: 'Hola Seriblast, me interesa la impresión DTF textil.',
+      dtf_uv: 'Hola Seriblast, me interesa la impresión DTF UV.',
+      promocionales: 'Hola Seriblast, me interesa personalización de promocionales.'
+    };
+    const msg = encodeURIComponent(mensajes[tipo] || mensajes.general);
+    el.href = `https://wa.me/${num}?text=${msg}`;
+    el.target = '_blank';
+    el.rel = 'noopener';
+  });
+}

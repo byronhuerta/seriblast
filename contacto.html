@@ -1,0 +1,284 @@
+# Seriblast — Página web oficial
+
+Sitio web estático (HTML + CSS + JavaScript vanilla) para Seriblast: servicios de personalización, grabado láser, sandblast, vitrificado, DTF textil/UV, diseño gráfico y promocionales.
+
+---
+
+## Estructura del proyecto
+
+```
+seriblast-web/
+├── index.html              ← Página de inicio
+├── servicios.html          ← Detalle de cada servicio
+├── cotizador.html          ← Formulario de cotización (envía a WhatsApp)
+├── galeria.html            ← Galería filtrable de trabajos
+├── nosotros.html           ← Sobre la empresa
+├── contacto.html           ← Contacto + FAQ + formulario WA
+├── README.md               ← Este archivo
+└── assets/
+    ├── css/
+    │   └── style.css       ← Todos los estilos
+    ├── js/
+    │   ├── main.js         ← Lógica global (navbar, FAQ, WhatsApp)
+    │   └── cotizador.js    ← Formato del mensaje de cotización
+    └── img/                ← (créala si no existe)
+        ├── logo.png        ← TU LOGO aquí
+        └── galeria/        ← Fotos de proyectos aquí
+```
+
+---
+
+## ⚡ Pasos URGENTES antes de publicar
+
+### 1. Agregar tu logo
+1. Crea la carpeta `assets/img/` si no existe
+2. Guarda tu archivo de logo como **`assets/img/logo.png`** (también vale .jpg, pero si lo nombras logo.png se carga automáticamente)
+3. ¡Listo! El sitio detecta el logo y lo muestra en navbar y footer
+4. Si por alguna razón no se carga, automáticamente aparece el fallback con la letra "S" estilizada
+
+> 💡 **Tip de calidad**: el logo recomendado es PNG con fondo transparente, altura mínima 200px. La imagen se redimensiona automáticamente a 44px de alto.
+
+### 2. Configurar el WhatsApp
+Edita el archivo **`assets/js/main.js`**, líneas 13–18:
+
+```js
+window.SERIBLAST_CONFIG = {
+  whatsapp: '5215580530887',         // tu número con lada (52 = México)
+  whatsappDisplay: '+52 1 55 8053 0887',
+  email: 'ventas@seriblast.com',
+  empresa: 'Seriblast'
+};
+```
+
+> ⚠️ El número debe ir **sin** signos `+`, espacios ni guiones.
+> Si el link no abre tu chat de WhatsApp, prueba quitar el "1" intermedio: `525580530887`. Esto pasa porque desde 2019 el [IFT eliminó el prefijo "1" en México](https://faq.whatsapp.com/5913398998672934), pero algunas cuentas WhatsApp Business antiguas siguen registradas con él.
+
+---
+
+## 📸 Cómo agregar fotos reales a la galería
+
+Esta es la parte que da personalidad al sitio. Aquí tienes los pasos detallados:
+
+### Paso 1: Prepara tus fotos
+Recomendaciones técnicas (basadas en [Web.dev de Google](https://web.dev/serve-images-webp/)):
+- **Formato**: `.jpg` (compatibilidad universal) o `.webp` (mejor calidad/peso)
+- **Tamaño**: máximo 1200×1200 px (suficiente para retina)
+- **Peso**: máximo 200 KB por imagen (usa [TinyPNG](https://tinypng.com/) o [Squoosh](https://squoosh.app/) para comprimir)
+- **Iluminación**: fotos en buena luz natural, fondo neutro (blanco, gris claro o negro)
+- **Encuadre**: cuadradas o muy cercanas a cuadradas (la galería usa `aspect-ratio: 1`)
+
+### Paso 2: Guarda las fotos
+Crea la carpeta `assets/img/galeria/` y guarda cada foto con un nombre descriptivo:
+```
+assets/img/galeria/
+├── llaveros-corporativos-1.jpg
+├── tablas-cortar-grabadas.jpg
+├── vasos-sandblast-bodas.jpg
+├── tazas-vitrificadas-personalizadas.jpg
+├── playeras-dtf-eventos.jpg
+└── ...
+```
+
+### Paso 3: Reemplaza los placeholders en `galeria.html`
+Abre `galeria.html` y busca los bloques que se ven así:
+
+```html
+<div class="gallery-item placeholder fade-in" data-cat="laser">
+  <div>
+    <div class="placeholder-icon">🔥</div>
+    <div class="ph-title">Llaveros corporativos</div>
+    <div class="ph-cat">Grabado Láser</div>
+  </div>
+</div>
+```
+
+Reemplázalos por este formato (con tu foto real):
+
+```html
+<div class="gallery-item fade-in" data-cat="laser">
+  <img src="assets/img/galeria/llaveros-corporativos-1.jpg"
+       alt="Llaveros corporativos grabados al láser">
+  <div class="gallery-overlay">
+    <div class="gh-title">Llaveros corporativos</div>
+    <div class="gh-cat">Grabado Láser</div>
+  </div>
+</div>
+```
+
+### Categorías disponibles para `data-cat`:
+- `"laser"` — Grabado Láser
+- `"sandblast"` — Grabado en Sandblast
+- `"vitrificado"` — Vitrificado
+- `"dtf"` — DTF Textil o DTF UV
+- `"promo"` — Promocionales personalizados
+- `"diseno"` — Diseño Gráfico
+
+> 🔍 Los filtros de la galería funcionan automáticamente con el atributo `data-cat`. No necesitas tocar nada de JavaScript.
+
+---
+
+## 📝 Sobre el cotizador (importante saberlo)
+
+El cotizador **NO calcula precios automáticamente**. Es un **formulario de requerimientos** que captura toda la información del proyecto del cliente y la envía a tu WhatsApp con formato profesional. Tú revisas la solicitud y respondes con el costo manualmente.
+
+**¿Por qué se hizo así?**
+- Tus servicios tienen muchas variables (material, técnica, complejidad) que es difícil reducir a una fórmula
+- Cada cotización merece tu criterio profesional para ser justa
+- Te evita responder con "depende, pásame fotos" — el cliente ya te dio todo el contexto desde el inicio
+
+**Lo que recibes en WhatsApp se ve así:**
+```
+🎯 NUEVA SOLICITUD DE COTIZACIÓN
+Enviado desde seriblast.com
+
+━━━━━━━━━━━━━━━━━━
+👤 DATOS DEL CLIENTE
+━━━━━━━━━━━━━━━━━━
+Nombre: María García
+Empresa: Eventos del Sol
+Email: maria@eventosdelsol.mx
+Teléfono: 55 1234 5678
+
+━━━━━━━━━━━━━━━━━━
+🎨 PROYECTO
+━━━━━━━━━━━━━━━━━━
+Servicio: Grabado Sandblast
+Material/Producto: Vasos de cristal
+Cantidad: 100 piezas
+Tamaño: 6x4 cm el grabado
+Plazo: En 2 semanas
+
+✅ Requerimientos adicionales:
+• Necesito diseño previo
+• Empaque individual / regalo
+
+💰 Presupuesto: $5,000 - $15,000 MXN
+
+━━━━━━━━━━━━━━━━━━
+📝 DETALLES
+━━━━━━━━━━━━━━━━━━
+Es para una boda el 15 de mayo. Necesitamos
+los nombres de los novios + fecha en cada vaso.
+Adjunto referencia visual aparte.
+
+━━━━━━━━━━━━━━━━━━
+Por favor, envíame una cotización con costo,
+tiempos y condiciones de pago. ¡Gracias!
+```
+
+---
+
+## Cómo probarlo localmente
+
+1. **Opción simple**: doble click en `index.html` y se abrirá en tu navegador. Si los links entre páginas funcionan correctamente, todo está bien.
+2. **Opción profesional** (recomendada): abre la carpeta del proyecto en VS Code e instala la extensión **Live Server** ([marketplace](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer)). Click derecho sobre `index.html` → "Open with Live Server". Esto te da hot-reload y emula un servidor real.
+
+---
+
+## Cómo subir el sitio a internet (gratis)
+
+### Opción 1: Netlify Drop (la más rápida — sin cuenta requerida)
+1. Ve a https://app.netlify.com/drop
+2. Arrastra la carpeta completa del proyecto al recuadro
+3. Listo. Te dan una URL como `https://random-name.netlify.app`
+4. Si quieres dominio propio (`seriblast.com`), créate cuenta gratis y conéctalo desde el panel.
+
+### Opción 2: Vercel
+1. Crea cuenta en https://vercel.com (puedes usar GitHub)
+2. Sube los archivos a un repositorio en GitHub
+3. Importa el repositorio desde Vercel → despliegue automático
+
+### Opción 3: GitHub Pages
+1. Crea un repositorio público en https://github.com
+2. Sube todos los archivos
+3. En Settings → Pages → activa GitHub Pages desde la rama `main`
+4. URL: `https://tuusuario.github.io/nombre-del-repo`
+
+### Opción 4: Hostinger / cPanel
+1. Comprime la carpeta en .zip
+2. Sube al `public_html` de tu hosting vía FTP
+3. Descomprime ahí mismo
+
+---
+
+## Otras personalizaciones
+
+### Cambiar colores de la marca
+En **`assets/css/style.css`**, líneas 6–25 están las variables CSS:
+
+```css
+:root {
+  --bg-primary: #0a0a0a;     /* fondo principal (negro) */
+  --purple: #7c3aed;         /* morado de acento */
+  --yellow: #facc15;         /* amarillo de acento */
+  /* ... */
+}
+```
+
+Cambia ahí los HEX y se actualiza en todo el sitio automáticamente.
+
+### Cambiar textos
+Edita directamente los archivos HTML. Cada sección está comentada para que sepas qué es qué.
+
+### Agregar un favicon
+Guarda un favicon como `favicon.ico` en la raíz del proyecto. Los navegadores lo detectan automáticamente.
+
+---
+
+## Características incluidas
+
+- **Diseño responsive**: funciona perfecto en móvil, tablet y desktop
+- **Formulario de cotización**: captura requerimientos completos y envía a WhatsApp con formato profesional
+- **Integración WhatsApp Business**: 27 puntos de contacto distribuidos en el sitio
+- **FAQ con acordeón**: en página de contacto
+- **Galería con filtros**: por categoría de servicio, soporta fotos reales con overlay
+- **Animaciones al scroll**: efecto fade-in suave usando IntersectionObserver
+- **WhatsApp flotante**: botón fijo en todas las páginas
+- **SEO básico**: meta tags, semántica HTML5, fonts optimizadas
+- **Carga rápida**: sin frameworks, solo Google Fonts vía CDN
+- **Logo con fallback**: si no encuentra `logo.png`, muestra letra "S" estilizada
+
+---
+
+## Métricas de rendimiento esperadas
+
+Según [Google PageSpeed Insights](https://pagespeed.web.dev/), un sitio estático como este debería puntuar:
+- **Performance**: 95-100/100
+- **Accessibility**: 95-100/100
+- **Best Practices**: 90-100/100
+- **SEO**: 95-100/100
+
+Para alcanzar estos números asegúrate de:
+1. Optimizar las imágenes que agregues (formato WebP, max 200 KB cada una)
+2. Servir el sitio con HTTPS (Netlify, Vercel y GitHub Pages lo dan gratis)
+3. No agregar scripts externos pesados sin necesidad
+
+---
+
+## Siguientes pasos sugeridos
+
+Si quieres extender el sitio:
+
+1. **Conectar Google Analytics 4** para medir tráfico
+2. **Agregar Meta Pixel** si vas a hacer publicidad en Instagram/Facebook
+3. **Crear un blog** con artículos sobre técnicas de grabado (mejor SEO)
+4. **Agregar testimonios reales** de clientes con foto y proyecto
+5. **Integrar Google Reviews** automáticamente
+6. **WhatsApp Cloud API** si tu volumen crece, para automatizar respuestas
+7. **Comprar dominio propio** (ej. seriblast.com.mx en GoDaddy o Namecheap, ~$200 MXN/año)
+
+---
+
+## Recursos y referencias usadas
+
+- [MDN Web Docs](https://developer.mozilla.org/) — Estándares de HTML/CSS/JS
+- [Google Web.dev](https://web.dev/) — Best practices de performance y SEO
+- [WhatsApp Click-to-Chat API](https://faq.whatsapp.com/5913398998672934) — Documentación oficial de los enlaces wa.me
+- [Manrope Font](https://fonts.google.com/specimen/Manrope) — Tipografía principal
+- [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) — Tipografía de títulos
+- [TinyPNG](https://tinypng.com/) — Compresión de imágenes
+- [Squoosh](https://squoosh.app/) — Optimización de imágenes a WebP
+
+---
+
+**Hecho con 💜 para Seriblast** — abril 2026

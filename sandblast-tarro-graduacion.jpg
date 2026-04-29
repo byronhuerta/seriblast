@@ -1,0 +1,165 @@
+/* =========================================================
+   SERIBLAST — Lógica del Formulario de Cotización
+   ---------------------------------------------------------
+   Recolecta los requerimientos del proyecto del usuario
+   y los envía al WhatsApp Business para que el equipo de
+   Seriblast cotice el costo final manualmente.
+
+   NO calcula precios. Solo formatea la información en un
+   mensaje claro y estructurado para WhatsApp.
+   ========================================================= */
+
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('cotizadorForm');
+  if (!form) return;
+
+  // Campos del formulario
+  const campos = {
+    nombre: document.getElementById('nombre'),
+    empresa: document.getElementById('empresa'),
+    email: document.getElementById('email'),
+    telefono: document.getElementById('telefono'),
+    servicio: document.getElementById('servicio'),
+    material: document.getElementById('material'),
+    cantidad: document.getElementById('cantidad'),
+    tamano: document.getElementById('tamano'),
+    fecha: document.getElementById('fecha'),
+    notas: document.getElementById('notas'),
+    presupuesto: document.getElementById('presupuesto')
+  };
+  const extras = document.querySelectorAll('input[name="extra"]');
+
+  // Listeners para actualizar resumen en tiempo real
+  Object.values(campos).forEach(el => {
+    if (!el) return;
+    el.addEventListener('input', actualizarResumen);
+    el.addEventListener('change', actualizarResumen);
+  });
+
+  extras.forEach(chk => {
+    chk.addEventListener('change', () => {
+      chk.closest('.checkbox-item').classList.toggle('checked', chk.checked);
+      actualizarResumen();
+    });
+  });
+
+  // ===== ACTUALIZACIÓN DEL RESUMEN LATERAL =====
+  function actualizarResumen() {
+    const cont = document.getElementById('resumenLineas');
+    const btn = document.getElementById('btnWhatsApp');
+    const datos = obtenerDatos();
+
+    cont.innerHTML = '';
+
+    // Si no hay datos mínimos, mantén estado vacío
+    if (!datos.nombre && !datos.servicio) {
+      cont.innerHTML = '<div class="summary-line"><span style="color:var(--text-muted);font-style:italic;">Llena el formulario para ver tu solicitud aquí...</span></div>';
+      btn.style.opacity = '0.5';
+      btn.style.pointerEvents = 'none';
+      btn.href = '#';
+      return;
+    }
+
+    // Pinta cada campo lleno como una línea del resumen
+    const lineas = [];
+    if (datos.nombre) lineas.push({ k: 'Nombre', v: datos.nombre });
+    if (datos.empresa) lineas.push({ k: 'Empresa', v: datos.empresa });
+    if (datos.servicio) lineas.push({ k: 'Servicio', v: datos.servicio });
+    if (datos.material) lineas.push({ k: 'Material', v: datos.material });
+    if (datos.cantidad) lineas.push({ k: 'Cantidad', v: datos.cantidad });
+    if (datos.tamano) lineas.push({ k: 'Tamaño', v: datos.tamano });
+    if (datos.fecha) lineas.push({ k: 'Plazo', v: datos.fecha });
+    if (datos.extras.length) lineas.push({ k: 'Adicionales', v: datos.extras.length + ' marcados' });
+    if (datos.presupuesto) lineas.push({ k: 'Presupuesto', v: datos.presupuesto });
+
+    lineas.forEach(l => {
+      const div = document.createElement('div');
+      div.className = 'summary-line';
+      div.innerHTML = `<span>${l.k}</span><strong style="text-align:right;max-width:60%;font-size:0.85rem;">${escapeHTML(l.v)}</strong>`;
+      cont.appendChild(div);
+    });
+
+    // Habilita el botón si hay nombre y servicio (lo mínimo)
+    const minimoListo = datos.nombre && datos.servicio && datos.notas;
+    if (minimoListo) {
+      btn.style.opacity = '1';
+      btn.style.pointerEvents = 'auto';
+      btn.href = generarLinkWA(datos);
+      btn.target = '_blank';
+      btn.rel = 'noopener';
+    } else {
+      btn.style.opacity = '0.5';
+      btn.style.pointerEvents = 'none';
+      btn.href = '#';
+    }
+  }
+
+  // ===== RECOLECCIÓN DE DATOS =====
+  function obtenerDatos() {
+    return {
+      nombre: campos.nombre?.value.trim() || '',
+      empresa: campos.empresa?.value.trim() || '',
+      email: campos.email?.value.trim() || '',
+      telefono: campos.telefono?.value.trim() || '',
+      servicio: campos.servicio?.value || '',
+      material: campos.material?.value.trim() || '',
+      cantidad: campos.cantidad?.value.trim() || '',
+      tamano: campos.tamano?.value.trim() || '',
+      fecha: campos.fecha?.value || '',
+      notas: campos.notas?.value.trim() || '',
+      presupuesto: campos.presupuesto?.value || '',
+      extras: Array.from(extras).filter(c => c.checked).map(c => c.value)
+    };
+  }
+
+  // ===== CONSTRUCCIÓN DEL MENSAJE Y LINK A WHATSAPP =====
+  function generarLinkWA(d) {
+    const num = window.SERIBLAST_CONFIG.whatsapp;
+    let m = `🎯 *NUEVA SOLICITUD DE COTIZACIÓN*\n`;
+    m += `_Enviado desde seriblast.com_\n\n`;
+
+    m += `━━━━━━━━━━━━━━━━━━\n`;
+    m += `*👤 DATOS DEL CLIENTE*\n`;
+    m += `━━━━━━━━━━━━━━━━━━\n`;
+    m += `*Nombre:* ${d.nombre}\n`;
+    if (d.empresa) m += `*Empresa:* ${d.empresa}\n`;
+    if (d.email) m += `*Email:* ${d.email}\n`;
+    if (d.telefono) m += `*Teléfono:* ${d.telefono}\n`;
+
+    m += `\n━━━━━━━━━━━━━━━━━━\n`;
+    m += `*🎨 PROYECTO*\n`;
+    m += `━━━━━━━━━━━━━━━━━━\n`;
+    m += `*Servicio:* ${d.servicio}\n`;
+    if (d.material) m += `*Material/Producto:* ${d.material}\n`;
+    if (d.cantidad) m += `*Cantidad:* ${d.cantidad}\n`;
+    if (d.tamano) m += `*Tamaño:* ${d.tamano}\n`;
+    if (d.fecha) m += `*Plazo:* ${d.fecha}\n`;
+
+    if (d.extras.length) {
+      m += `\n*✅ Requerimientos adicionales:*\n`;
+      d.extras.forEach(ex => m += `• ${ex}\n`);
+    }
+
+    if (d.presupuesto) m += `\n*💰 Presupuesto:* ${d.presupuesto}\n`;
+
+    m += `\n━━━━━━━━━━━━━━━━━━\n`;
+    m += `*📝 DETALLES*\n`;
+    m += `━━━━━━━━━━━━━━━━━━\n`;
+    m += `${d.notas}\n`;
+
+    m += `\n━━━━━━━━━━━━━━━━━━\n`;
+    m += `_Por favor, envíame una cotización con costo, tiempos y condiciones de pago. ¡Gracias!_`;
+
+    return `https://wa.me/${num}?text=${encodeURIComponent(m)}`;
+  }
+
+  function escapeHTML(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  // Inicializa
+  actualizarResumen();
+});

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitar cotización — Seriblast</title>
+  <meta name="description" content="Cuéntanos los detalles de tu proyecto y te enviaremos una cotización personalizada por WhatsApp.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="container nav-content">
+      <a href="index.html" class="logo">
+        <img src="assets/img/logo.png" alt="Seriblast" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='grid';">
+        <span class="logo-mark" style="display:none;">S</span>
+        <span class="logo-text">Seriblast</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html">Inicio</a></li>
+        <li><a href="servicios.html">Servicios</a></li>
+        <li><a href="cotizador.html" class="active">Cotizador</a></li>
+        <li><a href="galeria.html">Galería</a></li>
+        <li><a href="nosotros.html">Nosotros</a></li>
+        <li><a href="contacto.html">Contacto</a></li>
+      </ul>
+      <div class="nav-cta">
+        <a href="#" class="btn btn-whatsapp" data-wa="general">WhatsApp</a>
+        <button class="menu-toggle" aria-label="Abrir menú"><span></span></button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HEADER -->
+  <header class="page-header">
+    <div class="container">
+      <span class="eyebrow">Solicitud de cotización · gratis y sin compromiso</span>
+      <h1>Cuéntanos sobre <span class="text-gradient">tu proyecto</span></h1>
+      <p class="lead" style="max-width:680px;margin:24px auto 0;">
+        Llena el formulario con los detalles de lo que necesitas. En cuanto recibamos tu solicitud por WhatsApp, te enviamos un costo personalizado en menos de 30 minutos en horario hábil.
+      </p>
+    </div>
+  </header>
+
+  <!-- FORMULARIO -->
+  <section style="padding-top:20px;">
+    <div class="container">
+      <div class="cotizador-wrap">
+
+        <!-- FORM -->
+        <form id="cotizadorForm" class="cotizador-form" onsubmit="return false;" autocomplete="off">
+
+          <!-- DATOS DE CONTACTO -->
+          <div class="form-section-title">
+            <h3 style="margin-bottom:8px;">📇 Tus datos</h3>
+            <p style="font-size:0.9rem;margin-bottom:24px;">Para que podamos contactarte y enviarte la cotización.</p>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="nombre">Nombre completo *</label>
+              <input id="nombre" class="form-control" type="text" required placeholder="Juan Pérez">
+            </div>
+            <div class="form-group">
+              <label for="empresa">Empresa <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
+              <input id="empresa" class="form-control" type="text" placeholder="Si es para tu negocio">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="email">Correo electrónico</label>
+              <input id="email" class="form-control" type="email" placeholder="tu@correo.com">
+            </div>
+            <div class="form-group">
+              <label for="telefono">Teléfono <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
+              <input id="telefono" class="form-control" type="tel" placeholder="55 1234 5678">
+            </div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid var(--border);margin:32px 0;">
+
+          <!-- DETALLES DEL PROYECTO -->
+          <div class="form-section-title">
+            <h3 style="margin-bottom:8px;">🎯 Detalles del proyecto</h3>
+            <p style="font-size:0.9rem;margin-bottom:24px;">Mientras más específico seas, más preciso será el costo que te demos.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="servicio">¿Qué servicio te interesa? *</label>
+            <select id="servicio" class="form-control" required>
+              <option value="">Selecciona un servicio...</option>
+              <option value="Diseño Gráfico">Diseño Gráfico</option>
+              <option value="Grabado Láser">Grabado Láser</option>
+              <option value="Grabado Sandblast">Grabado Sandblast</option>
+              <option value="Vitrificado">Vitrificado</option>
+              <option value="DTF Textil por metro">DTF Textil por metro</option>
+              <option value="DTF UV por metro">DTF UV por metro</option>
+              <option value="Personalización de Promocionales">Personalización de Promocionales</option>
+              <option value="Publicidad / BTL / POP">Publicidad / BTL / POP</option>
+              <option value="Combinación / No estoy seguro">Combinación / No estoy seguro — necesito asesoría</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="material">¿En qué material o producto se aplicará?</label>
+            <input id="material" class="form-control" type="text" placeholder="Ej: tazas de cerámica, playeras de algodón, vidrio, MDF, acrílico...">
+            <div class="help">Si tienes el producto en mente, descríbelo. Si no, déjalo en blanco y te asesoramos.</div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cantidad">Cantidad aproximada</label>
+              <input id="cantidad" class="form-control" type="text" placeholder="Ej: 50 piezas, 3 metros, 1 logo...">
+            </div>
+            <div class="form-group">
+              <label for="tamano">Tamaño aproximado</label>
+              <input id="tamano" class="form-control" type="text" placeholder="Ej: 10×8 cm, A4, tamaño carta...">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>¿Qué necesitas adicionalmente?</label>
+            <div class="checkbox-group">
+              <label class="checkbox-item">
+                <input type="checkbox" name="extra" value="Necesito diseño previo">
+                <span>Necesito diseño previo</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="extra" value="Tengo archivo listo (vector)">
+                <span>Tengo archivo listo</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="extra" value="Necesito envío a domicilio">
+                <span>Envío a domicilio</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="extra" value="Es urgente (24-48h)">
+                <span>Es urgente (24-48h)</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="extra" value="Empaque individual / regalo">
+                <span>Empaque individual / regalo</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="extra" value="Necesito factura">
+                <span>Necesito factura</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="fecha">¿Cuándo lo necesitas?</label>
+            <select id="fecha" class="form-control">
+              <option value="">Selecciona...</option>
+              <option value="Lo antes posible">Lo antes posible</option>
+              <option value="En 1 semana">En 1 semana</option>
+              <option value="En 2 semanas">En 2 semanas</option>
+              <option value="En 1 mes">En 1 mes</option>
+              <option value="Sin prisa, solo quiero saber el costo">Sin prisa, solo quiero saber el costo</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="notas">Cuéntanos más detalles del proyecto *</label>
+            <textarea id="notas" class="form-control" required style="min-height:140px;" placeholder="Describe el proyecto: para qué es, qué quieres lograr, colores que usarás, referencias visuales que tengas, ideas... cualquier detalle nos ayuda a darte la mejor cotización."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="presupuesto">Presupuesto aproximado <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
+            <select id="presupuesto" class="form-control">
+              <option value="">Prefiero no decir</option>
+              <option value="Menos de $1,000 MXN">Menos de $1,000 MXN</option>
+              <option value="$1,000 - $5,000 MXN">$1,000 - $5,000 MXN</option>
+              <option value="$5,000 - $15,000 MXN">$5,000 - $15,000 MXN</option>
+              <option value="$15,000 - $50,000 MXN">$15,000 - $50,000 MXN</option>
+              <option value="Más de $50,000 MXN">Más de $50,000 MXN</option>
+            </select>
+            <div class="help">Saber tu rango nos ayuda a proponerte la mejor opción dentro de tu presupuesto.</div>
+          </div>
+
+        </form>
+
+        <!-- RESUMEN LATERAL -->
+        <aside class="cotizador-summary">
+          <h3>📋 Tu solicitud</h3>
+
+          <div id="resumenLineas">
+            <div class="summary-line"><span style="color:var(--text-muted);font-style:italic;">Llena el formulario para ver tu solicitud aquí...</span></div>
+          </div>
+
+          <a id="btnWhatsApp" href="#" class="btn btn-whatsapp btn-lg" style="width:100%;margin-top:20px;opacity:0.5;pointer-events:none;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+            Enviar solicitud por WhatsApp
+          </a>
+
+          <div class="disclaimer">
+            ⓘ Tu solicitud se enviará a nuestro WhatsApp Business: <strong>+52 55 8053 0887</strong>. Te respondemos con el costo personalizado en menos de 30 minutos en horario hábil.
+            <br><br>
+            * Campos obligatorios. Mientras más detalles compartas, más precisa será la cotización.
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- VENTAJAS -->
+  <section style="background:var(--bg-secondary);">
+    <div class="container">
+      <div class="section-header fade-in">
+        <h2>¿Por qué cotizar con <span class="text-purple">Seriblast</span>?</h2>
+      </div>
+      <div class="services-grid">
+        <article class="service-card fade-in">
+          <div class="service-icon">⚡</div>
+          <h3>Respuesta rápida</h3>
+          <p>Recibes una propuesta clara en menos de 30 minutos en horario hábil. Sin esperas innecesarias.</p>
+        </article>
+        <article class="service-card fade-in">
+          <div class="service-icon">💰</div>
+          <h3>Precio justo</h3>
+          <p>Tarifas honestas y desglosadas. Sin sorpresas ni cargos ocultos en la factura final.</p>
+        </article>
+        <article class="service-card fade-in">
+          <div class="service-icon">🎯</div>
+          <h3>Asesoría sin costo</h3>
+          <p>Te recomendamos la mejor técnica y material para tu objetivo, aunque no termines comprando.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="index.html" class="logo">
+            <img src="assets/img/logo.png" alt="Seriblast" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='grid';">
+            <span class="logo-mark" style="display:none;">S</span>
+            <span class="logo-text">Seriblast</span>
+          </a>
+          <p>Personalización, grabado y diseño premium para empresas, agencias y proyectos que buscan calidad real.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Servicios</h4>
+          <ul>
+            <li><a href="servicios.html#diseno">Diseño Gráfico</a></li>
+            <li><a href="servicios.html#laser">Grabado Láser</a></li>
+            <li><a href="servicios.html#sandblast">Sandblast</a></li>
+            <li><a href="servicios.html#dtf-textil">DTF Textil</a></li>
+            <li><a href="servicios.html#dtf-uv">DTF UV</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Empresa</h4>
+          <ul>
+            <li><a href="nosotros.html">Sobre nosotros</a></li>
+            <li><a href="galeria.html">Galería</a></li>
+            <li><a href="contacto.html">Contacto</a></li>
+            <li><a href="cotizador.html">Cotizador</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Contacto</h4>
+          <ul>
+            <li><a href="#" data-wa="general">WhatsApp Business</a></li>
+            <li><a href="mailto:ventas@seriblast.com">ventas@seriblast.com</a></li>
+            <li><a href="contacto.html">Formulario</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">© <span id="year"></span> Seriblast. Todos los derechos reservados.</div>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+  <script src="assets/js/cotizador.js"></script>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>
