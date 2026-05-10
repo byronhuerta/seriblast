@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="JARVIS">
+  <meta name="theme-color" content="#050912">
+  <meta name="description" content="JARVIS — Tu asistente de IA personal. Habla, pregunta, pide. Disponible 24/7.">
+
+  <title>JARVIS — Asistente Personal IA</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/jarvis/manifest.json">
+
+  <!-- iOS icons (fallback) -->
+  <link rel="apple-touch-icon" href="/jarvis/icon-192.png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- ORB BACKGROUND -->
+  <div class="bg-orb" id="bg-orb" aria-hidden="true">
+    <div class="orb-ring r1"></div>
+    <div class="orb-ring r2"></div>
+    <div class="orb-ring r3"></div>
+    <div class="orb-ring r4"></div>
+    <div class="orb-core"></div>
+    <div class="orb-glow"></div>
+  </div>
+
+  <!-- GRID OVERLAY -->
+  <div class="grid-overlay" aria-hidden="true"></div>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-brand">
+      <span class="header-logo">J</span>
+      <div>
+        <div class="header-title">JARVIS</div>
+        <div class="header-sub" id="status-text">En línea · 24/7</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="btn-tts" class="hdr-btn" aria-label="Activar/desactivar voz" title="Voz">🔊</button>
+      <button id="btn-clear" class="hdr-btn" aria-label="Nueva conversación" title="Nueva conversación">↺</button>
+    </div>
+  </header>
+
+  <!-- INSTALL BANNER -->
+  <div id="install-banner" class="install-banner" hidden>
+    <span>📱 Instala JARVIS en tu celular para tenerlo siempre</span>
+    <button id="btn-install" class="install-btn">Instalar app</button>
+  </div>
+
+  <!-- MESSAGES -->
+  <main class="messages-wrap" id="messages" role="log" aria-live="polite" aria-label="Conversación con JARVIS"></main>
+
+  <!-- VISUALIZER (shown when listening/speaking) -->
+  <div class="viz-wrap" id="viz-wrap" aria-hidden="true">
+    <div class="viz" id="viz">
+      <span class="bar" style="--i:0"></span>
+      <span class="bar" style="--i:1"></span>
+      <span class="bar" style="--i:2"></span>
+      <span class="bar" style="--i:3"></span>
+      <span class="bar" style="--i:4"></span>
+      <span class="bar" style="--i:5"></span>
+      <span class="bar" style="--i:6"></span>
+      <span class="bar" style="--i:7"></span>
+      <span class="bar" style="--i:8"></span>
+    </div>
+  </div>
+
+  <!-- QUICK PROMPTS (shown when conversation is empty) -->
+  <div class="quick-prompts" id="quick-prompts">
+    <button class="qp" data-p="¿Qué tiempo hace hoy en la Ciudad de México?">Clima hoy</button>
+    <button class="qp" data-p="Pon un recordatorio en 30 minutos para hacer ejercicio">Recordatorio</button>
+    <button class="qp" data-p="Busca en YouTube música para trabajar">YouTube</button>
+    <button class="qp" data-p="Abre WhatsApp">WhatsApp</button>
+    <button class="qp" data-p="¿Cuánto es el 20% de 850?">Calculadora</button>
+    <button class="qp" data-p="Redacta un mensaje diciendo que voy tarde y llego en 20 minutos">Mensaje</button>
+  </div>
+
+  <!-- BOTTOM INPUT -->
+  <div class="input-zone" id="input-zone">
+    <div class="input-row">
+      <input
+        id="txt-input"
+        type="text"
+        placeholder="Pregúntame algo..."
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        inputmode="text"
+        enterkeyhint="send"
+        aria-label="Escribe tu mensaje"
+      >
+      <button id="btn-send" class="action-btn send-btn" aria-label="Enviar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+    <!-- Big mic button -->
+    <button id="btn-mic" class="mic-btn" aria-label="Hablar con JARVIS">
+      <span class="mic-rings" aria-hidden="true">
+        <span class="mic-ring r1"></span>
+        <span class="mic-ring r2"></span>
+        <span class="mic-ring r3"></span>
+      </span>
+      <svg class="mic-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+      <span class="mic-label">Mantén presionado para hablar</span>
+    </button>
+  </div>
+
+  <!-- NOTIFICATION PERMISSION -->
+  <div id="notif-banner" class="notif-banner" hidden>
+    <span>🔔 Activa notificaciones para recordatorios</span>
+    <button id="btn-notif" class="install-btn">Activar</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

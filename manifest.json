@@ -1,0 +1,42 @@
+{
+  "name": "Seriblast — Personalización Premium",
+  "short_name": "Seriblast",
+  "description": "Diseño, grabado láser, sandblast, DTF y personalización premium en CDMX. Con JARVIS, tu asistente 24/7.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#7c3aed",
+  "lang": "es",
+  "categories": ["business", "shopping"],
+  "icons": [
+    {
+      "src": "assets/img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Cotizar proyecto",
+      "short_name": "Cotizar",
+      "description": "Solicita una cotización rápida",
+      "url": "/cotizador.html",
+      "icons": [{ "src": "assets/img/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Ver servicios",
+      "short_name": "Servicios",
+      "description": "Conoce todos nuestros servicios",
+      "url": "/servicios.html",
+      "icons": [{ "src": "assets/img/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
