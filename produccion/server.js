@@ -1,0 +1,544 @@
+const express = require('express');
+const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const Datastore = require('@seald-io/nedb');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'seriblast-secret-2024';
+const DATA_DIR = path.join(__dirname, 'data');
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Collections ─────────────────────────────────────────────────────────────
+
+const { mkdirSync } = require('fs');
+mkdirSync(DATA_DIR, { recursive: true });
+
+function col(name) {
+  return new Datastore({ filename: path.join(DATA_DIR, `${name}.db`), autoload: true });
+}
+
+const users    = col('users');
+const services = col('services');
+const fxCosts  = col('fixed_costs');
+const orders   = col('orders');
+const mats     = col('order_materials');
+const labor    = col('order_labor');
+const logs     = col('production_logs');
+
+// Ensure unique indexes
+users.ensureIndex({ fieldName: 'username', unique: true });
+orders.ensureIndex({ fieldName: 'folio', unique: true });
+
+// ── Helper: normalize _id → id ───────────────────────────────────────────────
+
+function norm(doc) {
+  if (!doc) return null;
+  const { _id, ...rest } = doc;
+  return { id: _id, ...rest };
+}
+function normAll(docs) { return docs.map(norm); }
+
+// ── Seed initial data ────────────────────────────────────────────────────────
+
+users.countAsync({}).then(async count => {
+  if (count > 0) return;
+
+  const hash = bcrypt.hashSync('admin123', 10);
+  await users.insertAsync({ username: 'admin', nombre: 'Administrador', password_hash: hash, role: 'admin', area: null, activo: true, created_at: now() });
+
+  const svc = (nombre, area, mat, hrs, hr) => services.insertAsync({ nombre, area, costo_material_base: mat, tiempo_estimado_hrs: hrs, costo_hora: hr, activo: true });
+  await svc('Sandblast en Tarro', 'sandblast', 25, 0.5, 150);
+  await svc('Grabado Láser Madera', 'laser', 15, 0.3, 200);
+  await svc('Grabado Láser Metal', 'laser', 20, 0.4, 200);
+  await svc('DTF Textil por Pieza', 'dtf_textil', 30, 0.2, 180);
+  await svc('DTF UV por Pieza', 'dtf_uv', 35, 0.25, 180);
+  await svc('Vitrificado en Taza', 'vitrificado', 20, 0.3, 160);
+  await svc('Bordado en Gorra', 'bordado', 40, 1, 150);
+
+  const fc = (nombre, monto) => fxCosts.insertAsync({ nombre, monto_mensual: monto, activo: true });
+  await fc('Renta taller', 5000);
+  await fc('Electricidad', 1500);
+  await fc('Gas/compresor', 800);
+  await fc('Mantenimiento maquinaria', 1000);
+});
+
+function now() { return new Date().toISOString().slice(0, 19).replace('T', ' '); }
+
+// ── Auth middleware ──────────────────────────────────────────────────────────
+
+function auth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No autenticado' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token inválido' });
+  }
+}
+
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'Sin permiso' });
+    next();
+  };
+}
+
+// ── Auth routes ──────────────────────────────────────────────────────────────
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Faltan credenciales' });
+    const user = await users.findOneAsync({ username, activo: true });
+    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    }
+    const payload = { id: user._id, username: user.username, nombre: user.nombre, role: user.role, area: user.area };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '12h' });
+    res.json({ token, user: payload });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/auth/me', auth, async (req, res) => {
+  try {
+    const user = await users.findOneAsync({ _id: req.user.id });
+    if (!user) return res.status(404).json({ error: 'No encontrado' });
+    const { _id, password_hash, ...safe } = user;
+    res.json({ id: _id, ...safe });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Users ────────────────────────────────────────────────────────────────────
+
+app.get('/api/users', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const list = await users.findAsync({}).sort({ nombre: 1 });
+    res.json(list.map(u => { const { password_hash, _id, ...r } = u; return { id: _id, ...r }; }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/users', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { username, nombre, password, role, area } = req.body;
+    if (!username || !nombre || !password || !role) return res.status(400).json({ error: 'Faltan campos' });
+    const hash = bcrypt.hashSync(password, 10);
+    const doc = await users.insertAsync({ username, nombre, password_hash: hash, role, area: area || null, activo: true, created_at: now() });
+    res.json({ id: doc._id });
+  } catch (e) {
+    if (e.message?.includes('unique')) return res.status(409).json({ error: 'Ese usuario ya existe' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/users/:id', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const user = await users.findOneAsync({ _id: req.params.id });
+    if (!user) return res.status(404).json({ error: 'No encontrado' });
+    const { nombre, password, role, area, activo } = req.body;
+    const $set = {
+      nombre: nombre ?? user.nombre,
+      role: role ?? user.role,
+      area: area ?? user.area,
+      activo: activo !== undefined ? !!activo : user.activo,
+    };
+    if (password) $set.password_hash = bcrypt.hashSync(password, 10);
+    await users.updateAsync({ _id: req.params.id }, { $set });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Services ─────────────────────────────────────────────────────────────────
+
+app.get('/api/services', auth, async (req, res) => {
+  try {
+    const list = await services.findAsync({}).sort({ area: 1, nombre: 1 });
+    res.json(normAll(list));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/services', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { nombre, area, costo_material_base, tiempo_estimado_hrs, costo_hora } = req.body;
+    if (!nombre || !area) return res.status(400).json({ error: 'Faltan campos' });
+    const doc = await services.insertAsync({ nombre, area, costo_material_base: costo_material_base || 0, tiempo_estimado_hrs: tiempo_estimado_hrs || 1, costo_hora: costo_hora || 0, activo: true });
+    res.json({ id: doc._id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/services/:id', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const svc = await services.findOneAsync({ _id: req.params.id });
+    if (!svc) return res.status(404).json({ error: 'No encontrado' });
+    const { nombre, area, costo_material_base, tiempo_estimado_hrs, costo_hora, activo } = req.body;
+    await services.updateAsync({ _id: req.params.id }, { $set: {
+      nombre: nombre ?? svc.nombre,
+      area: area ?? svc.area,
+      costo_material_base: costo_material_base ?? svc.costo_material_base,
+      tiempo_estimado_hrs: tiempo_estimado_hrs ?? svc.tiempo_estimado_hrs,
+      costo_hora: costo_hora ?? svc.costo_hora,
+      activo: activo !== undefined ? !!activo : svc.activo,
+    }});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Fixed costs ───────────────────────────────────────────────────────────────
+
+app.get('/api/fixed-costs', auth, requireRole('admin'), async (req, res) => {
+  try { res.json(normAll(await fxCosts.findAsync({}).sort({ nombre: 1 }))); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fixed-costs', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { nombre, monto_mensual } = req.body;
+    if (!nombre) return res.status(400).json({ error: 'Falta nombre' });
+    const doc = await fxCosts.insertAsync({ nombre, monto_mensual: monto_mensual || 0, activo: true });
+    res.json({ id: doc._id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/fixed-costs/:id', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const fc = await fxCosts.findOneAsync({ _id: req.params.id });
+    if (!fc) return res.status(404).json({ error: 'No encontrado' });
+    const { nombre, monto_mensual, activo } = req.body;
+    await fxCosts.updateAsync({ _id: req.params.id }, { $set: {
+      nombre: nombre ?? fc.nombre,
+      monto_mensual: monto_mensual ?? fc.monto_mensual,
+      activo: activo !== undefined ? !!activo : fc.activo,
+    }});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Orders ────────────────────────────────────────────────────────────────────
+
+function generateFolio() {
+  const d = new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `SB-${yy}${mm}${dd}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+}
+
+async function enrichOrders(list) {
+  const userCache = {};
+  const getUser = async id => {
+    if (!id) return null;
+    if (!userCache[id]) {
+      const u = await users.findOneAsync({ _id: id });
+      userCache[id] = u ? u.nombre : '—';
+    }
+    return userCache[id];
+  };
+  return Promise.all(list.map(async o => ({
+    ...norm(o),
+    creado_por_nombre: await getUser(o.created_by),
+  })));
+}
+
+app.get('/api/orders', auth, async (req, res) => {
+  try {
+    const { status, area } = req.query;
+    const query = {};
+    if (req.user.role === 'produccion') query.area = req.user.area;
+    else if (area) query.area = area;
+    if (status) query.status = status;
+    const list = await orders.findAsync(query).sort({ created_at: -1 });
+    res.json(await enrichOrders(list));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/orders/:id', auth, async (req, res) => {
+  try {
+    const order = await orders.findOneAsync({ _id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+    if (req.user.role === 'produccion' && order.area !== req.user.area) {
+      return res.status(403).json({ error: 'Sin permiso' });
+    }
+
+    const isAdmin = req.user.role === 'admin';
+    const [matList, laborList, logList, creador] = await Promise.all([
+      mats.findAsync({ order_id: req.params.id }),
+      labor.findAsync({ order_id: req.params.id }),
+      logs.findAsync({ order_id: req.params.id }).sort({ timestamp: -1 }),
+      users.findOneAsync({ _id: order.created_by }),
+    ]);
+
+    // Enrich logs with user names
+    const userCache = {};
+    const enrichedLogs = await Promise.all(logList.map(async l => {
+      if (l.user_id && !userCache[l.user_id]) {
+        const u = await users.findOneAsync({ _id: l.user_id });
+        userCache[l.user_id] = u?.nombre || '—';
+      }
+      return { ...norm(l), user_nombre: l.user_id ? userCache[l.user_id] : '—' };
+    }));
+
+    // Strip financial data from non-admins
+    const safeOrder = norm(order);
+    if (!isAdmin) { delete safeOrder.precio_venta; delete safeOrder.costo_merma; }
+    safeOrder.creado_por_nombre = creador?.nombre || '—';
+
+    const safeMats = isAdmin
+      ? normAll(matList)
+      : matList.map(m => ({ id: m._id, order_id: m.order_id, material: m.material, cantidad: m.cantidad, unidad: m.unidad }));
+
+    const safeLabor = isAdmin
+      ? normAll(laborList)
+      : laborList.map(l => ({ id: l._id, order_id: l.order_id, nombre_operador: l.nombre_operador, horas: l.horas, fecha: l.fecha }));
+
+    const costos = isAdmin ? await calcCosts(order, matList, laborList) : null;
+
+    res.json({ ...safeOrder, materials: safeMats, labor: safeLabor, logs: enrichedLogs, costos });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/orders', auth, requireRole('admin', 'ventas'), async (req, res) => {
+  try {
+    const { cliente, servicio_id, servicio_nombre, area, cantidad, descripcion, precio_venta, fecha_entrega } = req.body;
+    if (!cliente || !area) return res.status(400).json({ error: 'Faltan campos requeridos' });
+
+    let folio = generateFolio();
+    while (await orders.findOneAsync({ folio })) folio = generateFolio();
+
+    const doc = await orders.insertAsync({
+      folio, cliente,
+      servicio_id: servicio_id || null,
+      servicio_nombre: servicio_nombre || 'Sin especificar',
+      area, cantidad: cantidad || 1,
+      descripcion: descripcion || null,
+      precio_venta: precio_venta || 0,
+      status: 'nuevo',
+      created_by: req.user.id,
+      created_at: now(),
+      fecha_entrega: fecha_entrega || null,
+      notas_produccion: null,
+      horas_reales: null,
+      piezas_merma: 0,
+      costo_merma: 0,
+      started_at: null,
+      completed_at: null,
+    });
+
+    await logs.insertAsync({ order_id: doc._id, user_id: req.user.id, accion: 'Pedido creado', notas: null, timestamp: now() });
+    res.json({ id: doc._id, folio });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/orders/:id', auth, requireRole('admin', 'ventas'), async (req, res) => {
+  try {
+    const order = await orders.findOneAsync({ _id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'No encontrado' });
+    const { cliente, servicio_id, servicio_nombre, area, cantidad, descripcion, precio_venta, fecha_entrega, notas_produccion } = req.body;
+    await orders.updateAsync({ _id: req.params.id }, { $set: {
+      cliente: cliente ?? order.cliente,
+      servicio_id: servicio_id ?? order.servicio_id,
+      servicio_nombre: servicio_nombre ?? order.servicio_nombre,
+      area: area ?? order.area,
+      cantidad: cantidad ?? order.cantidad,
+      descripcion: descripcion ?? order.descripcion,
+      precio_venta: precio_venta ?? order.precio_venta,
+      fecha_entrega: fecha_entrega ?? order.fecha_entrega,
+      notas_produccion: notas_produccion ?? order.notas_produccion,
+    }});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/orders/:id/status', auth, async (req, res) => {
+  try {
+    const { status, notas_produccion, horas_reales, piezas_merma, costo_merma } = req.body;
+    const order = await orders.findOneAsync({ _id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'No encontrado' });
+    if (req.user.role === 'produccion' && order.area !== req.user.area) {
+      return res.status(403).json({ error: 'Sin permiso' });
+    }
+    const allowed = {
+      admin: ['nuevo', 'en_produccion', 'completado', 'entregado', 'cancelado'],
+      ventas: ['entregado', 'cancelado'],
+      produccion: ['en_produccion', 'completado'],
+    };
+    if (!allowed[req.user.role]?.includes(status)) {
+      return res.status(403).json({ error: 'No puedes asignar ese estatus' });
+    }
+
+    const $set = { status };
+    if (notas_produccion !== undefined) $set.notas_produccion = notas_produccion;
+    if (horas_reales !== undefined) $set.horas_reales = horas_reales;
+    if (piezas_merma !== undefined) $set.piezas_merma = piezas_merma;
+    // Only admin can record monetary merma cost
+    if (req.user.role === 'admin' && costo_merma !== undefined) $set.costo_merma = costo_merma;
+
+    if (status === 'en_produccion' && !order.started_at) $set.started_at = now();
+    if (status === 'completado') $set.completed_at = now();
+
+    await orders.updateAsync({ _id: req.params.id }, { $set });
+    await logs.insertAsync({ order_id: req.params.id, user_id: req.user.id, accion: `Estado → ${status}`, notas: notas_produccion || null, timestamp: now() });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Materials ─────────────────────────────────────────────────────────────────
+
+app.post('/api/orders/:id/materials', auth, async (req, res) => {
+  try {
+    const order = await orders.findOneAsync({ _id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'No encontrado' });
+    const { material, cantidad, unidad, costo_unitario } = req.body;
+    if (!material) return res.status(400).json({ error: 'Falta material' });
+    const efectivo = req.user.role === 'admin' ? (costo_unitario || 0) : 0;
+    const doc = await mats.insertAsync({ order_id: req.params.id, material, cantidad: cantidad || 1, unidad: unidad || 'pza', costo_unitario: efectivo });
+    res.json({ id: doc._id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/orders/:id/materials/:mid', auth, async (req, res) => {
+  try {
+    await mats.removeAsync({ _id: req.params.mid, order_id: req.params.id });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Labor ─────────────────────────────────────────────────────────────────────
+
+app.post('/api/orders/:id/labor', auth, async (req, res) => {
+  try {
+    const order = await orders.findOneAsync({ _id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'No encontrado' });
+    const { horas, costo_hora, nombre_operador } = req.body;
+    const efectivo = req.user.role === 'admin' ? (costo_hora || 0) : 0;
+    const doc = await labor.insertAsync({
+      order_id: req.params.id,
+      user_id: req.user.id,
+      nombre_operador: nombre_operador || req.user.nombre,
+      horas: horas || 0,
+      costo_hora: efectivo,
+      fecha: now().slice(0, 10),
+    });
+    res.json({ id: doc._id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/orders/:id/labor/:lid', auth, async (req, res) => {
+  try {
+    await labor.removeAsync({ _id: req.params.lid, order_id: req.params.id });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Cost calculation ──────────────────────────────────────────────────────────
+
+async function calcCosts(order, matList, laborList) {
+  const costoMateriales = matList.reduce((s, m) => s + (m.cantidad * m.costo_unitario), 0);
+  const costoManoObra = laborList.reduce((s, l) => s + (l.horas * l.costo_hora), 0);
+  const costoMerma = order.costo_merma || 0;
+
+  const allFc = await fxCosts.findAsync({ activo: true });
+  const totalFixed = allFc.reduce((s, f) => s + f.monto_mensual, 0);
+  const costoPorHora = totalFixed / 176; // 22 días × 8h
+  const costoFijos = costoPorHora * (order.horas_reales || 0);
+
+  const costoTotal = costoMateriales + costoManoObra + costoMerma + costoFijos;
+  const precioVenta = order.precio_venta || 0;
+  const utilidad = precioVenta - costoTotal;
+  const margen = precioVenta > 0 ? (utilidad / precioVenta) * 100 : 0;
+
+  return {
+    costoMateriales: +costoMateriales.toFixed(2),
+    costoManoObra: +costoManoObra.toFixed(2),
+    costoMerma: +costoMerma.toFixed(2),
+    costoFijos: +costoFijos.toFixed(2),
+    costoTotal: +costoTotal.toFixed(2),
+    precioVenta: +precioVenta.toFixed(2),
+    utilidad: +utilidad.toFixed(2),
+    margen: +margen.toFixed(1),
+  };
+}
+
+app.get('/api/orders/:id/costs', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const order = await orders.findOneAsync({ _id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'No encontrado' });
+    const [matList, laborList] = await Promise.all([
+      mats.findAsync({ order_id: req.params.id }),
+      labor.findAsync({ order_id: req.params.id }),
+    ]);
+    res.json(await calcCosts(order, matList, laborList));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+app.get('/api/reports/summary', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const query = { status: { $nin: ['cancelado'] } };
+    if (desde || hasta) {
+      query.created_at = {};
+      if (desde) query.created_at.$gte = desde;
+      if (hasta) query.created_at.$lte = hasta + ' 23:59:59';
+    }
+
+    const allOrders = await orders.findAsync(query);
+    let totalVenta = 0, totalCosto = 0, totalMerma = 0;
+    const porArea = {};
+    const counters = { total: 0, nuevos: 0, en_produccion: 0, completados: 0, entregados: 0, cancelados: 0 };
+
+    // Count all for status counters (including cancelled)
+    const allForCount = await orders.findAsync(desde || hasta ? { created_at: query.created_at } : {});
+    counters.total = allForCount.length;
+    for (const o of allForCount) {
+      if (o.status === 'nuevo') counters.nuevos++;
+      else if (o.status === 'en_produccion') counters.en_produccion++;
+      else if (o.status === 'completado') counters.completados++;
+      else if (o.status === 'entregado') counters.entregados++;
+      else if (o.status === 'cancelado') counters.cancelados++;
+    }
+
+    for (const order of allOrders) {
+      const [matList, laborList] = await Promise.all([
+        mats.findAsync({ order_id: order._id }),
+        labor.findAsync({ order_id: order._id }),
+      ]);
+      const costs = await calcCosts(order, matList, laborList);
+      totalVenta += costs.precioVenta;
+      totalCosto += costs.costoTotal;
+      totalMerma += costs.costoMerma;
+
+      if (!porArea[order.area]) porArea[order.area] = { pedidos: 0, venta: 0, costo: 0 };
+      porArea[order.area].pedidos++;
+      porArea[order.area].venta += costs.precioVenta;
+      porArea[order.area].costo += costs.costoTotal;
+    }
+
+    res.json({
+      counters,
+      totalVenta: +totalVenta.toFixed(2),
+      totalCosto: +totalCosto.toFixed(2),
+      totalMerma: +totalMerma.toFixed(2),
+      utilidad: +(totalVenta - totalCosto).toFixed(2),
+      margen: totalVenta > 0 ? +((totalVenta - totalCosto) / totalVenta * 100).toFixed(1) : 0,
+      porArea,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── SPA fallback ──────────────────────────────────────────────────────────────
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n✅ Seriblast Producción corriendo en http://localhost:${PORT}`);
+  console.log(`   Desde la red local: http://<TU-IP>:${PORT}`);
+  console.log(`   Usuario inicial: admin / admin123\n`);
+});
