@@ -319,20 +319,40 @@ async function viewOrder(id) {
 
       ${isAdmin && c ? `
       <div class="card">
-        <div class="card-header"><h3>Costos y margen</h3></div>
-        <div class="cost-row"><span>Materiales</span><span>$${fmt(c.costoMateriales)}</span></div>
-        <div class="cost-row"><span>Mano de obra</span><span>$${fmt(c.costoManoObra)}</span></div>
-        <div class="cost-row"><span>Merma</span><span style="color:var(--red)">$${fmt(c.costoMerma)}</span></div>
-        <div class="cost-row"><span>Gastos fijos prorateados</span><span>$${fmt(c.costoFijos)}</span></div>
-        <div class="cost-row total"><span>Costo total</span><span>$${fmt(c.costoTotal)}</span></div>
-        <div class="cost-row total"><span>Precio de venta</span><span>$${fmt(c.precioVenta)}</span></div>
-        <div class="cost-row margin">
-          <span>Margen</span>
-          <span class="${c.margen >= 0 ? 'margin-positive' : 'margin-negative'}">${c.margen}%</span>
+        <div class="card-header">
+          <h3>Costos y ganancia</h3>
+          <span class="muted" style="font-size:.82rem">${c.cantidad} pza(s)</span>
         </div>
-        <div class="cost-row">
-          <span>Utilidad</span>
-          <span class="${c.utilidad >= 0 ? 'margin-positive' : 'margin-negative'}">$${fmt(c.utilidad)}</span>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Concepto</th><th class="text-right">Por pieza</th><th class="text-right">Total</th></tr></thead>
+            <tbody>
+              <tr><td>Materiales</td><td class="text-right">$${fmt(c.costoMaterialesU)}</td><td class="text-right">$${fmt(c.costoMateriales)}</td></tr>
+              <tr><td>Mano de obra</td><td class="text-right">$${fmt(c.costoManoObraU)}</td><td class="text-right">$${fmt(c.costoManoObra)}</td></tr>
+              <tr><td style="color:var(--red)">Merma</td><td class="text-right" style="color:var(--red)">$${fmt(c.costoMermaU)}</td><td class="text-right" style="color:var(--red)">$${fmt(c.costoMerma)}</td></tr>
+              <tr><td>Gastos fijos</td><td class="text-right">$${fmt(c.costoFijosU)}</td><td class="text-right">$${fmt(c.costoFijos)}</td></tr>
+              <tr style="font-weight:700;border-top:1px solid var(--border)">
+                <td>Costo total</td><td class="text-right">$${fmt(c.costoTotalU)}</td><td class="text-right">$${fmt(c.costoTotal)}</td>
+              </tr>
+              <tr style="font-weight:700">
+                <td>Precio cobrado</td><td class="text-right">$${fmt(c.precioVentaU)}</td><td class="text-right">$${fmt(c.precioVenta)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap">
+          <div class="stat-card ${c.margen >= 30 ? 'green' : c.margen >= 0 ? 'yellow' : 'red'}" style="flex:1;min-width:120px">
+            <div class="label">% Ganancia</div>
+            <div class="value">${c.margen}%</div>
+          </div>
+          <div class="stat-card ${c.utilidadU >= 0 ? 'green' : 'red'}" style="flex:1;min-width:120px">
+            <div class="label">Ganancia / pieza</div>
+            <div class="value">$${fmt(c.utilidadU)}</div>
+          </div>
+          <div class="stat-card ${c.utilidad >= 0 ? 'green' : 'red'}" style="flex:1;min-width:120px">
+            <div class="label">Ganancia total</div>
+            <div class="value">$${fmt(c.utilidad)}</div>
+          </div>
         </div>
       </div>
       ` : ''}
@@ -516,7 +536,8 @@ async function openOrderModal(id = null) {
     $('o-cliente').value = o.cliente;
     $('o-cantidad').value = o.cantidad;
     $('o-area').value = o.area;
-    $('o-precio').value = o.precio_venta;
+    // Mostrar precio POR PIEZA al editar
+    $('o-precio').value = o.cantidad > 0 ? +((o.precio_venta || 0) / o.cantidad).toFixed(2) : 0;
     $('o-fecha').value = o.fecha_entrega ? o.fecha_entrega.slice(0, 10) : '';
     $('o-desc').value = o.descripcion || '';
     $('o-notas').value = o.notas_produccion || '';
@@ -548,7 +569,8 @@ $('modal-order-save').onclick = async () => {
     area: $('o-area').value,
     cantidad: parseInt($('o-cantidad').value),
     descripcion: $('o-desc').value.trim() || null,
-    precio_venta: parseFloat($('o-precio').value) || 0,
+    // Guardar precio TOTAL = precio_por_pieza × cantidad
+    precio_venta: (parseFloat($('o-precio').value) || 0) * (parseInt($('o-cantidad').value) || 1),
     fecha_entrega: $('o-fecha').value || null,
     notas_produccion: $('o-notas').value.trim() || null,
   };

@@ -451,7 +451,12 @@ async function calcCosts(order, matList, laborList) {
   const utilidad = precioVenta - costoTotal;
   const margen = precioVenta > 0 ? (utilidad / precioVenta) * 100 : 0;
 
+  const cantidad = order.cantidad || 1;
+  const u = n => +(n / cantidad).toFixed(2);
+
   return {
+    cantidad,
+    // Totales
     costoMateriales: +costoMateriales.toFixed(2),
     costoManoObra: +costoManoObra.toFixed(2),
     costoMerma: +costoMerma.toFixed(2),
@@ -460,6 +465,14 @@ async function calcCosts(order, matList, laborList) {
     precioVenta: +precioVenta.toFixed(2),
     utilidad: +utilidad.toFixed(2),
     margen: +margen.toFixed(1),
+    // Por pieza
+    costoMaterialesU: u(costoMateriales),
+    costoManoObraU: u(costoManoObra),
+    costoMermaU: u(costoMerma),
+    costoFijosU: u(costoFijos),
+    costoTotalU: u(costoTotal),
+    precioVentaU: u(precioVenta),
+    utilidadU: u(utilidad),
   };
 }
 
