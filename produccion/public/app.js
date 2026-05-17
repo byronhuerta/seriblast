@@ -23,6 +23,16 @@ function fmt(n) { return Number(n || 0).toLocaleString('es-MX', { minimumFractio
 function fmtDate(s) { if (!s) return '—'; return s.slice(0, 10).split('-').reverse().join('/'); }
 function badge(status) { return `<span class="badge badge-${status}">${STATUS[status] || status}</span>`; }
 
+function deliveryAlert(fecha, status) {
+  if (!fecha || ['completado', 'entregado', 'cancelado'].includes(status)) return { cls: '', tag: '' };
+  const today = new Date().toISOString().slice(0, 10);
+  const tom   = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  if (fecha < today) return { cls: 'overdue',   tag: '<span class="alert-tag overdue">VENCIDO</span>' };
+  if (fecha === today) return { cls: 'today-due', tag: '<span class="alert-tag today">HOY</span>' };
+  if (fecha === tom)   return { cls: '',          tag: '<span class="alert-tag tomorrow">MAÑANA</span>' };
+  return { cls: '', tag: '' };
+}
+
 async function api(path, method = 'GET', body = null) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (token) opts.headers['Authorization'] = `Bearer ${token}`;
@@ -108,15 +118,21 @@ function buildSidebar() {
   if (currentUser.role === 'admin') {
     add('dashboard', '📊', 'Dashboard');
     add('orders', '📋', 'Pedidos');
+    add('kanban', '🗂️', 'Kanban');
+    add('cotizador', '🧮', 'Cotizador rápido');
+    add('eficiencia', '⚡', 'Eficiencia');
     add('reports', '📈', 'Reportes');
     add('config-services', '⚙️', 'Servicios');
     add('config-fixed', '💰', 'Gastos fijos');
     add('config-users', '👥', 'Usuarios');
   } else if (currentUser.role === 'ventas') {
     add('orders', '📋', 'Pedidos');
+    add('kanban', '🗂️', 'Kanban');
+    add('cotizador', '🧮', 'Cotizador');
     add('new-order', '➕', 'Nuevo pedido');
   } else {
     add('produccion', '🏭', 'Mi área');
+    add('kanban', '🗂️', 'Kanban');
     add('produccion-all', '📋', 'Todos');
   }
 
@@ -151,6 +167,9 @@ async function renderView(view) {
     switch (view) {
       case 'dashboard': await renderDashboard(); break;
       case 'orders': await renderOrders(); break;
+      case 'kanban': await renderKanban(); break;
+      case 'cotizador': await renderCotizador(); break;
+      case 'eficiencia': await renderEficiencia(); break;
       case 'new-order': renderNewOrderForm(); break;
       case 'produccion': await renderProduccion(false); break;
       case 'produccion-all': await renderProduccion(true); break;
@@ -244,18 +263,19 @@ function ordersTable(orders, minimal = false) {
       <th>Estatus</th><th>Entrega</th><th></th>
     </tr></thead>
     <tbody>
-      ${orders.map(o => `
-        <tr>
+      ${orders.map(o => {
+        const al = deliveryAlert(o.fecha_entrega, o.status);
+        return `<tr class="row-${al.cls}">
           <td class="td-folio">${o.folio}</td>
           <td><strong>${o.cliente}</strong></td>
           <td><small class="muted">${o.servicio_nombre || '—'}</small></td>
           <td>${AREAS[o.area] || o.area}</td>
           ${!minimal ? `<td>${o.cantidad}</td>` : ''}
           <td>${badge(o.status)}</td>
-          <td>${fmtDate(o.fecha_entrega)}</td>
-          <td><button class="btn btn-ghost btn-sm" onclick="viewOrder(${o.id})">Ver →</button></td>
-        </tr>
-      `).join('')}
+          <td>${fmtDate(o.fecha_entrega)}${al.tag}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="viewOrder('${o.id}')">Ver →</button></td>
+        </tr>`;
+      }).join('')}
     </tbody>
   </table></div>`;
 }
@@ -671,8 +691,10 @@ async function renderProduccion(showAll) {
 function produccionCards(orders) {
   if (!orders.length) return '<div class="muted" style="font-size:.88rem;margin-bottom:8px">Sin pedidos</div>';
   return `<div class="grid-3" style="margin-bottom:8px">
-    ${orders.map(o => `
-      <div class="card" style="cursor:pointer" onclick="viewOrder(${o.id})">
+    ${orders.map(o => {
+      const al = deliveryAlert(o.fecha_entrega, o.status);
+      return `
+      <div class="card ${al.cls}" style="cursor:pointer;${al.cls === 'overdue' ? 'border-left:3px solid var(--red)' : al.cls === 'today-due' ? 'border-left:3px solid var(--orange)' : ''}" onclick="viewOrder('${o.id}')">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
           <span class="td-folio" style="font-size:.85rem">${o.folio}</span>
           ${badge(o.status)}
@@ -681,11 +703,11 @@ function produccionCards(orders) {
         <small class="muted">${o.servicio_nombre || '—'}</small>
         <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
           <small class="muted">${o.cantidad} pzas · ${AREAS[o.area] || o.area}</small>
-          <small class="muted">${fmtDate(o.fecha_entrega)}</small>
+          <small>${fmtDate(o.fecha_entrega)}${al.tag}</small>
         </div>
         ${o.notas_produccion ? `<div style="margin-top:8px;padding:8px;background:rgba(245,197,24,.08);border-radius:6px;font-size:.8rem;color:var(--accent)">📌 ${o.notas_produccion}</div>` : ''}
-      </div>
-    `).join('')}
+      </div>`;
+    }).join('')}
   </div>`;
 }
 
@@ -949,6 +971,296 @@ $('modal-user-save').onclick = async () => {
     toast(editUserId ? 'Usuario actualizado' : 'Usuario creado');
   } catch (e) { toast(e.message, 'error'); }
 };
+
+/* ── Kanban ─────────────────────────────────────────────────────────────── */
+async function renderKanban() {
+  const areaFilter = currentUser.role === 'produccion' ? `&area=${currentUser.area}` : '';
+  const [nuevos, enProd, completados, entregados] = await Promise.all([
+    api(`/orders?status=nuevo${areaFilter}`),
+    api(`/orders?status=en_produccion${areaFilter}`),
+    api(`/orders?status=completado${areaFilter}`),
+    api(`/orders?status=entregado${areaFilter}`),
+  ]);
+
+  const isAdmin = currentUser.role === 'admin';
+  const isProd  = currentUser.role === 'produccion';
+
+  function kanbanCard(o) {
+    const al = deliveryAlert(o.fecha_entrega, o.status);
+    const actions = [];
+    if ((isAdmin || isProd) && o.status === 'nuevo')
+      actions.push(`<button class="btn btn-warning btn-sm" onclick="event.stopPropagation();kbMove('${o.id}','en_produccion')">▶ Iniciar</button>`);
+    if ((isAdmin || isProd) && o.status === 'en_produccion')
+      actions.push(`<button class="btn btn-success btn-sm" onclick="event.stopPropagation();openCompleteModal('${o.id}')">✔ Completar</button>`);
+    if ((isAdmin || currentUser.role === 'ventas') && o.status === 'completado')
+      actions.push(`<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();kbMove('${o.id}','entregado')">📦 Entregar</button>`);
+    return `
+      <div class="kanban-card ${al.cls === 'overdue' ? 'overdue' : al.cls === 'today-due' ? 'today-due' : ''}" onclick="viewOrder('${o.id}')">
+        <div class="k-folio">${o.folio}</div>
+        <div class="k-cliente">${o.cliente}</div>
+        <small class="muted">${o.servicio_nombre || '—'}</small>
+        <div class="k-meta">
+          <span>${o.cantidad} pzas</span>
+          <span>${fmtDate(o.fecha_entrega)}${al.tag}</span>
+        </div>
+        ${o.notas_produccion ? `<div style="margin-top:6px;font-size:.76rem;color:var(--accent)">📌 ${o.notas_produccion}</div>` : ''}
+        ${actions.length ? `<div class="k-actions">${actions.join('')}</div>` : ''}
+      </div>`;
+  }
+
+  const cols = [
+    { status: 'nuevo',        label: 'Nuevo',          color: 'var(--blue)',   orders: nuevos },
+    { status: 'en_produccion',label: 'En producción',   color: 'var(--accent)', orders: enProd },
+    { status: 'completado',   label: 'Completado',      color: 'var(--green)',  orders: completados },
+    { status: 'entregado',    label: 'Entregado',       color: 'var(--primary)',orders: entregados },
+  ];
+
+  // Area filter for admin/ventas
+  const areas = ['', ...Object.keys(AREAS)];
+  $('view').innerHTML = `
+    <div class="page-top">
+      <div class="page-title"><h1>Kanban</h1><p>Flujo de pedidos</p></div>
+      ${isAdmin || currentUser.role === 'ventas' ? `
+      <div class="page-actions">
+        <select id="kb-area" onchange="navigate('kanban')">
+          ${areas.map(a => `<option value="${a}" ${a === (currentUser._kbArea||'') ? 'selected' : ''}>${a ? AREAS[a] : 'Todas las áreas'}</option>`).join('')}
+        </select>
+      </div>` : ''}
+    </div>
+    <div class="kanban-wrap">
+      ${cols.map(col => `
+        <div class="kanban-col">
+          <div class="kanban-col-header" style="border-top:3px solid ${col.color}">
+            <span>${col.label}</span>
+            <span class="count">${col.orders.length}</span>
+          </div>
+          <div class="kanban-cards">
+            ${col.orders.length ? col.orders.map(kanbanCard).join('') : '<div class="muted" style="font-size:.82rem;padding:8px 0;text-align:center">Sin pedidos</div>'}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function kbMove(id, status) {
+  try {
+    await api(`/orders/${id}/status`, 'PATCH', { status });
+    toast('Estatus actualizado');
+    navigate('kanban');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ── Cotizador rápido ───────────────────────────────────────────────────── */
+async function renderCotizador() {
+  const svcs = await api('/services');
+  const fcs = currentUser.role === 'admin' ? await api('/fixed-costs') : [];
+  const totalFijo = fcs.filter(f => f.activo).reduce((s, f) => s + f.monto_mensual, 0);
+  const costoFijoPorHora = totalFijo / 176;
+
+  $('view').innerHTML = `
+    <div class="page-title"><h1>Cotizador rápido</h1><p>Calcula el precio sugerido según tus costos y margen deseado</p></div>
+    <div class="grid-2">
+      <div class="card">
+        <h3 style="margin-bottom:16px">Parámetros</h3>
+        <div class="form-group">
+          <label>Servicio base</label>
+          <select id="q-svc" onchange="calcQuote()">
+            <option value="">— Sin servicio —</option>
+            ${svcs.filter(s => s.activo).map(s => `<option value="${s.id}" data-mat="${s.costo_material_base}" data-hrs="${s.tiempo_estimado_hrs}" data-hr="${s.costo_hora}">${s.nombre} (${AREAS[s.area]})</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cantidad (pzas)</label>
+            <input type="number" id="q-cant" value="1" min="1" oninput="calcQuote()">
+          </div>
+          <div class="form-group">
+            <label>% Ganancia deseada</label>
+            <input type="number" id="q-margen" value="40" min="1" max="99" oninput="calcQuote()">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Costo material extra ($)</label>
+            <input type="number" id="q-mat-extra" value="0" min="0" step="0.01" oninput="calcQuote()">
+          </div>
+          <div class="form-group">
+            <label>Horas estimadas</label>
+            <input type="number" id="q-hrs" value="1" min="0.1" step="0.25" oninput="calcQuote()">
+          </div>
+        </div>
+        ${currentUser.role === 'admin' ? `
+        <div class="form-group">
+          <label>Costo por hora ($)</label>
+          <input type="number" id="q-hr" value="150" min="0" step="0.01" oninput="calcQuote()">
+        </div>` : '<input type="hidden" id="q-hr" value="0">'}
+        <div id="q-result"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px">Referencia de servicios</h3>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Servicio</th><th>Área</th><th>Costo est.</th></tr></thead>
+          <tbody>
+            ${svcs.filter(s => s.activo).map(s => `<tr>
+              <td>${s.nombre}</td>
+              <td><small class="muted">${AREAS[s.area]}</small></td>
+              ${currentUser.role === 'admin' ? `<td>$${fmt(s.costo_material_base + s.tiempo_estimado_hrs * s.costo_hora)}</td>` : '<td>—</td>'}
+            </tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  `;
+  // Store fixed cost rate globally for calcQuote
+  window._costoFijoPorHora = costoFijoPorHora;
+  calcQuote();
+}
+
+function calcQuote() {
+  const svcOpt = $('q-svc')?.selectedOptions[0];
+  const cant    = parseFloat($('q-cant')?.value) || 1;
+  const margen  = parseFloat($('q-margen')?.value) || 40;
+  const matExtra= parseFloat($('q-mat-extra')?.value) || 0;
+  const hrs     = parseFloat($('q-hrs')?.value) || 1;
+  const hrRate  = parseFloat($('q-hr')?.value) || 0;
+  const fixedPH = window._costoFijoPorHora || 0;
+
+  const matBase   = svcOpt ? parseFloat(svcOpt.dataset.mat || 0) : 0;
+  const costoMat  = matBase + matExtra;
+  const costoMO   = hrs * hrRate;
+  const costoFijo = hrs * fixedPH;
+  const costoUnit = costoMat + costoMO + costoFijo;
+  const costoTotal= costoUnit * cant;
+
+  // precio = costo / (1 - margen/100)
+  const m = Math.min(margen, 99) / 100;
+  const precioUnit  = m < 1 ? costoUnit / (1 - m) : costoUnit * 3;
+  const precioTotal = precioUnit * cant;
+  const gananciaUnit = precioUnit - costoUnit;
+  const gananciaTotal = gananciaUnit * cant;
+
+  const res = $('q-result');
+  if (!res) return;
+  const isAdmin = currentUser.role === 'admin';
+  res.innerHTML = `
+    <div class="quote-result">
+      <div class="muted" style="font-size:.82rem;text-transform:uppercase;letter-spacing:.06em">Precio sugerido por pieza</div>
+      <div class="price-big">$${fmt(precioUnit)}</div>
+      <div class="price-sub">Total (${cant} pzas): <strong>$${fmt(precioTotal)}</strong></div>
+      ${isAdmin ? `
+      <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="eff-metric"><div class="lbl">Costo / pieza</div><div class="val">$${fmt(costoUnit)}</div></div>
+        <div class="eff-metric"><div class="lbl">Costo total</div><div class="val">$${fmt(costoTotal)}</div></div>
+        <div class="eff-metric"><div class="lbl">Ganancia / pieza</div><div class="val" style="color:var(--green)">$${fmt(gananciaUnit)}</div></div>
+        <div class="eff-metric"><div class="lbl">Ganancia total</div><div class="val" style="color:var(--green)">$${fmt(gananciaTotal)}</div></div>
+      </div>` : ''}
+      <button class="btn btn-primary w-full" style="margin-top:14px" onclick="usarCotizacion(${precioUnit.toFixed(2)})">Crear pedido con este precio</button>
+    </div>
+  `;
+}
+
+function usarCotizacion(precio) {
+  // Pre-fill order modal with the calculated price per piece
+  window._cotizadorPrecio = precio;
+  openOrderModal();
+  // After modal opens, set the price
+  setTimeout(() => { if ($('o-precio')) $('o-precio').value = precio; }, 100);
+}
+
+/* ── Eficiencia ─────────────────────────────────────────────────────────── */
+async function renderEficiencia() {
+  const today    = new Date().toISOString().slice(0, 10);
+  const firstDay = today.slice(0, 8) + '01';
+  $('view').innerHTML = `
+    <div class="page-title"><h1>Eficiencia y capacidad</h1><p>¿Estás al límite? ¿Cuándo conviene contratar?</p></div>
+    <div class="filters" style="margin-bottom:20px">
+      <input type="date" id="ef-desde" value="${firstDay}">
+      <input type="date" id="ef-hasta" value="${today}">
+      <div class="form-group" style="margin:0">
+        <select id="ef-hd">
+          <option value="6">6 hrs/día</option>
+          <option value="8" selected>8 hrs/día</option>
+          <option value="10">10 hrs/día</option>
+          <option value="12">12 hrs/día</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="loadEficiencia()">Calcular</button>
+    </div>
+    <div id="ef-content"><div class="empty"><div class="icon">⚡</div>Selecciona el período y haz clic en Calcular</div></div>
+  `;
+  await loadEficiencia();
+}
+
+async function loadEficiencia() {
+  const desde = $('ef-desde').value;
+  const hasta = $('ef-hasta').value;
+  const hd    = $('ef-hd').value;
+  try {
+    const data = await api(`/reports/efficiency?desde=${desde}&hasta=${hasta}&horas_dia=${hd}`);
+
+    const REC = {
+      contratar:      { label: '⚠️ Considera contratar', cls: 'contratar' },
+      vigilar:        { label: '👀 Monitorear carga',    cls: 'vigilar' },
+      ok:             { label: '✅ Capacidad normal',    cls: 'ok' },
+      capacidad_libre:{ label: '💡 Capacidad libre',     cls: 'libre' },
+    };
+
+    function utilColor(u) { return u >= 85 ? 'red' : u >= 65 ? 'yellow' : 'green'; }
+
+    const cards = data.areas.map(a => {
+      const rec = REC[a.recomendacion] || REC.ok;
+      const uc  = utilColor(a.utilizacion);
+      const barW = Math.min(a.utilizacion, 100);
+      return `
+      <div class="eff-card rec-${a.recomendacion}">
+        <div class="eff-area-name">${AREAS[a.area] || a.area}</div>
+        <div style="display:flex;justify-content:space-between;font-size:.82rem">
+          <span class="muted">Utilización</span>
+          <strong style="color:var(--${uc === 'red' ? 'red' : uc === 'yellow' ? 'accent' : 'green'})">${a.utilizacion}%</strong>
+        </div>
+        <div class="util-bar-wrap"><div class="util-bar ${uc}" style="width:${barW}%"></div></div>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:8px">${a.horasTrabajadas.toFixed(1)}h trabajadas / ${a.capacidadHoras}h disponibles (1 persona)</div>
+        <div class="eff-metrics">
+          <div class="eff-metric"><div class="lbl">Pedidos</div><div class="val">${a.pedidosTotal}</div></div>
+          <div class="eff-metric"><div class="lbl">Completados</div><div class="val">${a.pedidosCompletados}</div></div>
+          <div class="eff-metric"><div class="lbl">Ingreso / hora</div><div class="val">$${fmt(a.ingresoPorHora)}</div></div>
+          <div class="eff-metric"><div class="lbl">T. promedio entrega</div><div class="val">${a.tiempoPromedioEntrega ? a.tiempoPromedioEntrega + 'h' : '—'}</div></div>
+        </div>
+        <div class="rec-chip ${rec.cls}">${rec.label}</div>
+        ${a.recomendacion === 'contratar' ? `
+        <div class="hire-box">
+          <strong>Si contratas 1 persona más:</strong><br>
+          + ${a.capacidadHoras}h capacidad adicional<br>
+          Ingreso potencial adicional: <strong>$${fmt(a.ingresoAdicionalPotencial)}</strong><br>
+          Costo estimado: <strong>$${fmt(a.costoContratar)}</strong><br>
+          ROI neto: <strong style="color:${a.roiContratar >= 0 ? 'var(--green)' : 'var(--red)'}">$${fmt(a.roiContratar)}</strong>
+        </div>` : ''}
+      </div>`;
+    });
+
+    // Global summary
+    const totalHrs = data.areas.reduce((s, a) => s + a.horasTrabajadas, 0);
+    const totalIng = data.areas.reduce((s, a) => s + a.ingresos, 0);
+    const avgUtil  = data.areas.length ? data.areas.reduce((s, a) => s + a.utilizacion, 0) / data.areas.length : 0;
+    const needHire = data.areas.filter(a => a.recomendacion === 'contratar').length;
+
+    $('ef-content').innerHTML = `
+      <div class="grid-4" style="margin-bottom:20px">
+        <div class="stat-card purple"><div class="label">Horas totales trabajadas</div><div class="value">${totalHrs.toFixed(0)}h</div><div class="sub">${data.workDays} días hábiles · ${data.horas_dia}h/día</div></div>
+        <div class="stat-card green"><div class="label">Ingresos del período</div><div class="value">$${fmt(totalIng)}</div></div>
+        <div class="stat-card ${avgUtil >= 85 ? 'red' : avgUtil >= 65 ? 'yellow' : 'green'}"><div class="label">Utilización promedio</div><div class="value">${avgUtil.toFixed(1)}%</div></div>
+        <div class="stat-card ${needHire > 0 ? 'red' : 'green'}"><div class="label">Áreas al límite</div><div class="value">${needHire}</div><div class="sub">${needHire > 0 ? 'Considera contratar' : 'Todo en orden'}</div></div>
+      </div>
+      ${data.areas.length
+        ? `<div class="grid-3">${cards.join('')}</div>`
+        : '<div class="empty"><div class="icon">📭</div>No hay datos de mano de obra en este período. Registra horas en los pedidos completados.</div>'
+      }
+    `;
+  } catch (e) {
+    $('ef-content').innerHTML = `<div class="empty"><div class="icon">⚠️</div>${e.message}</div>`;
+  }
+}
 
 /* ── Init ───────────────────────────────────────────────────────────────── */
 if (token) {

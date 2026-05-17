@@ -343,3 +343,122 @@ tr:last-child td { border-bottom: none; }
 .w-full { width: 100%; }
 .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Delivery alerts ────────────────────────────────────────────────────────── */
+.alert-tag {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: .06em;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+.alert-tag.overdue { background: rgba(239,68,68,.2); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+.alert-tag.today   { background: rgba(249,115,22,.2); color: #fb923c; border: 1px solid rgba(249,115,22,.3); }
+.alert-tag.tomorrow{ background: rgba(245,197,24,.2); color: #f5c518; border: 1px solid rgba(245,197,24,.3); }
+tr.row-overdue td  { background: rgba(239,68,68,.04); }
+tr.row-today td    { background: rgba(249,115,22,.04); }
+
+/* ── Kanban ──────────────────────────────────────────────────────────────────── */
+.kanban-wrap {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  align-items: flex-start;
+}
+.kanban-col {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 260px;
+  max-width: 280px;
+  flex-shrink: 0;
+}
+.kanban-col-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: .9rem;
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.kanban-col-header .count {
+  background: rgba(255,255,255,.08);
+  border-radius: 100px;
+  padding: 2px 8px;
+  font-size: .75rem;
+  font-weight: 700;
+}
+.kanban-cards { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
+.kanban-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color .15s, transform .1s;
+}
+.kanban-card:hover { border-color: var(--primary); transform: translateY(-1px); }
+.kanban-card.overdue { border-left: 3px solid var(--red); }
+.kanban-card.today-due { border-left: 3px solid var(--orange); }
+.kanban-card .k-folio { font-size: .75rem; color: var(--primary); font-family: monospace; }
+.kanban-card .k-cliente { font-weight: 700; margin: 4px 0; font-size: .9rem; }
+.kanban-card .k-meta { font-size: .78rem; color: var(--text-muted); display: flex; justify-content: space-between; margin-top: 6px; }
+.kanban-card .k-actions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ── Efficiency ──────────────────────────────────────────────────────────────── */
+.eff-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.eff-card.rec-contratar { border-color: var(--red); }
+.eff-card.rec-vigilar   { border-color: var(--orange); }
+.eff-card.rec-ok        { border-color: var(--green); }
+.eff-area-name { font-size: 1rem; font-weight: 800; margin-bottom: 14px; }
+.util-bar-wrap { background: rgba(255,255,255,.06); border-radius: 100px; height: 10px; margin: 8px 0 4px; overflow: hidden; }
+.util-bar { height: 100%; border-radius: 100px; transition: width .5s; }
+.util-bar.green  { background: var(--green); }
+.util-bar.yellow { background: var(--accent); }
+.util-bar.red    { background: var(--red); }
+.eff-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.eff-metric { background: rgba(255,255,255,.04); border-radius: 6px; padding: 8px 10px; }
+.eff-metric .lbl { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.eff-metric .val { font-size: 1rem; font-weight: 700; margin-top: 2px; }
+.rec-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 100px; font-size: .78rem; font-weight: 700;
+  margin-top: 12px;
+}
+.rec-chip.contratar { background: rgba(239,68,68,.15); color: #f87171; }
+.rec-chip.vigilar   { background: rgba(249,115,22,.15); color: #fb923c; }
+.rec-chip.ok        { background: rgba(34,197,94,.15); color: #4ade80; }
+.rec-chip.libre     { background: rgba(59,130,246,.15); color: #60a5fa; }
+.hire-box {
+  margin-top: 14px; padding: 12px; border-radius: 8px;
+  background: rgba(124,92,252,.08); border: 1px solid rgba(124,92,252,.2);
+  font-size: .85rem;
+}
+.hire-box strong { color: var(--primary); }
+
+/* ── Cotizador rápido ───────────────────────────────────────────────────────── */
+.quote-result {
+  background: rgba(124,92,252,.08);
+  border: 1px solid rgba(124,92,252,.25);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-top: 20px;
+}
+.quote-result .price-big {
+  font-size: 2rem; font-weight: 800; color: var(--primary); margin: 8px 0;
+}
+.quote-result .price-sub { font-size: .88rem; color: var(--text-muted); }

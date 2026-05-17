@@ -544,6 +544,107 @@ app.get('/api/reports/summary', auth, requireRole('admin'), async (req, res) => 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Efficiency report ─────────────────────────────────────────────────────────
+
+app.get('/api/reports/efficiency', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { desde, hasta, horas_dia = 8 } = req.query;
+    const hdInt = parseFloat(horas_dia) || 8;
+
+    // Date range
+    const dateQuery = {};
+    if (desde || hasta) {
+      dateQuery.created_at = {};
+      if (desde) dateQuery.created_at.$gte = desde;
+      if (hasta) dateQuery.created_at.$lte = hasta + ' 23:59:59';
+    }
+
+    // Days in period
+    const d1 = desde ? new Date(desde) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const d2 = hasta ? new Date(hasta) : new Date();
+    const daysDiff = Math.max(1, Math.round((d2 - d1) / 86400000) + 1);
+    const workDays = Math.round(daysDiff * 5 / 7); // approximate working days
+    const capacidadTotal = workDays * hdInt; // available hours per person
+
+    const allOrders = await orders.findAsync(dateQuery);
+    const allLabor = await labor.findAsync({});
+
+    const porArea = {};
+
+    for (const o of allOrders) {
+      const area = o.area;
+      if (!porArea[area]) {
+        porArea[area] = {
+          area,
+          pedidosTotal: 0,
+          pedidosCompletados: 0,
+          horasTrabajadas: 0,
+          ingresos: 0,
+          costoLaboral: 0,
+          tiemposEntrega: [],
+          capacidadHoras: capacidadTotal,
+        };
+      }
+      const a = porArea[area];
+      a.pedidosTotal++;
+      if (['completado', 'entregado'].includes(o.status)) {
+        a.pedidosCompletados++;
+        if (o.started_at && o.completed_at) {
+          const hrs = (new Date(o.completed_at) - new Date(o.started_at)) / 3600000;
+          if (hrs > 0) a.tiemposEntrega.push(hrs);
+        }
+      }
+      if (!['cancelado'].includes(o.status)) {
+        a.ingresos += o.precio_venta || 0;
+      }
+
+      // Sum labor for this order
+      const orderLabor = allLabor.filter(l => l.order_id === o._id);
+      for (const l of orderLabor) {
+        a.horasTrabajadas += l.horas || 0;
+        a.costoLaboral += (l.horas || 0) * (l.costo_hora || 0);
+      }
+    }
+
+    // Compute derived metrics
+    const areas = Object.values(porArea).map(a => {
+      const utilizacion = a.capacidadHoras > 0 ? (a.horasTrabajadas / a.capacidadHoras) * 100 : 0;
+      const ingresoPorHora = a.horasTrabajadas > 0 ? a.ingresos / a.horasTrabajadas : 0;
+      const tiempoPromedioEntrega = a.tiemposEntrega.length > 0
+        ? a.tiemposEntrega.reduce((s, v) => s + v, 0) / a.tiemposEntrega.length
+        : null;
+
+      // Hiring ROI: what if we add 1 person (capacidadTotal more hours)?
+      const capacidadAdicional = capacidadTotal;
+      const ingresoAdicionalPotencial = ingresoPorHora * capacidadAdicional;
+      // Estimate hire cost using average labor rate (costoLaboral / horasTrabajadas)
+      const tarifaPromedio = a.horasTrabajadas > 0 ? a.costoLaboral / a.horasTrabajadas : 150;
+      const costoContratar = tarifaPromedio * capacidadAdicional;
+      const roiContratar = ingresoAdicionalPotencial - costoContratar;
+
+      let recomendacion = 'ok';
+      if (utilizacion >= 85) recomendacion = 'contratar';
+      else if (utilizacion >= 65) recomendacion = 'vigilar';
+      else if (utilizacion < 30 && a.pedidosTotal > 0) recomendacion = 'capacidad_libre';
+
+      return {
+        ...a,
+        tiemposEntrega: undefined,
+        utilizacion: +utilizacion.toFixed(1),
+        ingresoPorHora: +ingresoPorHora.toFixed(2),
+        tiempoPromedioEntrega: tiempoPromedioEntrega ? +tiempoPromedioEntrega.toFixed(1) : null,
+        tarifaPromedio: +tarifaPromedio.toFixed(2),
+        ingresoAdicionalPotencial: +ingresoAdicionalPotencial.toFixed(2),
+        costoContratar: +costoContratar.toFixed(2),
+        roiContratar: +roiContratar.toFixed(2),
+        recomendacion,
+      };
+    });
+
+    res.json({ areas, workDays, capacidadTotal, horas_dia: hdInt });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 
 app.get('*', (req, res) => {
