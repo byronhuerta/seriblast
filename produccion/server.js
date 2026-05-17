@@ -3,6 +3,8 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Datastore = require('@seald-io/nedb');
+const multer = require('multer');
+const { mkdirSync } = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,8 +16,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Collections ─────────────────────────────────────────────────────────────
 
-const { mkdirSync } = require('fs');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
 mkdirSync(DATA_DIR, { recursive: true });
+mkdirSync(UPLOADS_DIR, { recursive: true });
+
+// Serve uploaded renders
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Multer config – images only, max 8 MB
+const upload = multer({
+  dest: UPLOADS_DIR,
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter(req, file, cb) {
+    cb(null, /image\/(jpeg|png|gif|webp)/.test(file.mimetype));
+  },
+});
 
 function col(name) {
   return new Datastore({ filename: path.join(DATA_DIR, `${name}.db`), autoload: true });
@@ -28,6 +43,8 @@ const orders   = col('orders');
 const mats     = col('order_materials');
 const labor    = col('order_labor');
 const logs     = col('production_logs');
+const clients  = col('clients');
+const inventory= col('inventory');
 
 // Ensure unique indexes
 users.ensureIndex({ fieldName: 'username', unique: true });
@@ -642,6 +659,146 @@ app.get('/api/reports/efficiency', auth, requireRole('admin'), async (req, res) 
     });
 
     res.json({ areas, workDays, capacidadTotal, horas_dia: hdInt });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Render upload ─────────────────────────────────────────────────────────────
+
+app.post('/api/orders/:id/render', auth, upload.single('render'), async (req, res) => {
+  try {
+    const order = await orders.findOneAsync({ _id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'No encontrado' });
+    if (!req.file) return res.status(400).json({ error: 'No se recibió imagen' });
+
+    // Delete old render file if exists
+    if (order.render_file) {
+      const { unlink } = require('fs');
+      unlink(path.join(UPLOADS_DIR, order.render_file), () => {});
+    }
+
+    await orders.updateAsync({ _id: req.params.id }, { $set: { render_file: req.file.filename, render_original: req.file.originalname } });
+    await logs.insertAsync({ order_id: req.params.id, user_id: req.user.id, accion: 'Render actualizado', notas: req.file.originalname, timestamp: now() });
+    res.json({ url: `/uploads/${req.file.filename}` });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/orders/:id/render', auth, async (req, res) => {
+  try {
+    const order = await orders.findOneAsync({ _id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'No encontrado' });
+    if (order.render_file) {
+      const { unlink } = require('fs');
+      unlink(path.join(UPLOADS_DIR, order.render_file), () => {});
+    }
+    await orders.updateAsync({ _id: req.params.id }, { $set: { render_file: null, render_original: null } });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Clients (CRM) ─────────────────────────────────────────────────────────────
+
+app.get('/api/clients', auth, async (req, res) => {
+  try {
+    const list = await clients.findAsync({}).sort({ nombre: 1 });
+    res.json(normAll(list));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/clients', auth, requireRole('admin', 'ventas'), async (req, res) => {
+  try {
+    const { nombre, empresa, telefono, email, notas } = req.body;
+    if (!nombre) return res.status(400).json({ error: 'Falta nombre' });
+    const doc = await clients.insertAsync({ nombre, empresa: empresa || null, telefono: telefono || null, email: email || null, notas: notas || null, created_at: now() });
+    res.json({ id: doc._id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/clients/:id', auth, requireRole('admin', 'ventas'), async (req, res) => {
+  try {
+    const cl = await clients.findOneAsync({ _id: req.params.id });
+    if (!cl) return res.status(404).json({ error: 'No encontrado' });
+    const { nombre, empresa, telefono, email, notas } = req.body;
+    await clients.updateAsync({ _id: req.params.id }, { $set: {
+      nombre: nombre ?? cl.nombre,
+      empresa: empresa ?? cl.empresa,
+      telefono: telefono ?? cl.telefono,
+      email: email ?? cl.email,
+      notas: notas ?? cl.notas,
+    }});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/clients/:id/orders', auth, async (req, res) => {
+  try {
+    const list = await orders.findAsync({ client_id: req.params.id }).sort({ created_at: -1 });
+    res.json(normAll(list));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Inventory ─────────────────────────────────────────────────────────────────
+
+app.get('/api/inventory', auth, async (req, res) => {
+  try {
+    const list = await inventory.findAsync({}).sort({ nombre: 1 });
+    res.json(normAll(list));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/inventory', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { nombre, unidad, stock_actual, stock_minimo, costo_unitario, area } = req.body;
+    if (!nombre) return res.status(400).json({ error: 'Falta nombre' });
+    const doc = await inventory.insertAsync({ nombre, unidad: unidad || 'pza', stock_actual: stock_actual || 0, stock_minimo: stock_minimo || 0, costo_unitario: costo_unitario || 0, area: area || null, activo: true });
+    res.json({ id: doc._id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/inventory/:id', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const item = await inventory.findOneAsync({ _id: req.params.id });
+    if (!item) return res.status(404).json({ error: 'No encontrado' });
+    const { nombre, unidad, stock_actual, stock_minimo, costo_unitario, area, activo } = req.body;
+    await inventory.updateAsync({ _id: req.params.id }, { $set: {
+      nombre: nombre ?? item.nombre,
+      unidad: unidad ?? item.unidad,
+      stock_actual: stock_actual ?? item.stock_actual,
+      stock_minimo: stock_minimo ?? item.stock_minimo,
+      costo_unitario: costo_unitario ?? item.costo_unitario,
+      area: area ?? item.area,
+      activo: activo !== undefined ? !!activo : item.activo,
+    }});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/inventory/:id/use', auth, async (req, res) => {
+  try {
+    const { cantidad } = req.body;
+    const item = await inventory.findOneAsync({ _id: req.params.id });
+    if (!item) return res.status(404).json({ error: 'No encontrado' });
+    const newStock = Math.max(0, (item.stock_actual || 0) - (cantidad || 0));
+    await inventory.updateAsync({ _id: req.params.id }, { $set: { stock_actual: newStock } });
+    res.json({ stock_actual: newStock, bajo_minimo: newStock < item.stock_minimo });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Calendar ──────────────────────────────────────────────────────────────────
+
+app.get('/api/calendar', auth, async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    const y = parseInt(year) || new Date().getFullYear();
+    const m = parseInt(month) || (new Date().getMonth() + 1);
+    const desde = `${y}-${String(m).padStart(2,'0')}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const hasta = `${y}-${String(m).padStart(2,'0')}-${lastDay}`;
+
+    const query = { fecha_entrega: { $gte: desde, $lte: hasta }, status: { $nin: ['cancelado'] } };
+    if (req.user.role === 'produccion') query.area = req.user.area;
+
+    const list = await orders.findAsync(query);
+    res.json(normAll(list));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

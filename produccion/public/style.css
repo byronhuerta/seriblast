@@ -450,6 +450,94 @@ tr.row-today td    { background: rgba(249,115,22,.04); }
 }
 .hire-box strong { color: var(--primary); }
 
+/* ── Render / image ──────────────────────────────────────────────────────────── */
+.render-box {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  min-height: 180px;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 10px;
+  cursor: pointer; transition: border-color .2s;
+  position: relative; overflow: hidden;
+  background: var(--bg-input);
+}
+.render-box:hover { border-color: var(--primary); }
+.render-box img { width: 100%; max-height: 320px; object-fit: contain; border-radius: 6px; }
+.render-box .upload-hint { color: var(--text-muted); font-size: .88rem; text-align: center; padding: 20px; }
+.render-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+/* ── Calendar ────────────────────────────────────────────────────────────────── */
+.cal-nav { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.cal-nav h2 { flex: 1; text-align: center; font-size: 1.1rem; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-day-name { text-align: center; font-size: .72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; padding: 6px 0; }
+.cal-cell {
+  min-height: 90px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  font-size: .78rem;
+}
+.cal-cell.today { border-color: var(--primary); }
+.cal-cell.other-month { opacity: .35; }
+.cal-cell .cal-num { font-weight: 700; margin-bottom: 4px; color: var(--text-muted); }
+.cal-cell.today .cal-num { color: var(--primary); }
+.cal-event {
+  background: rgba(124,92,252,.15); border-left: 2px solid var(--primary);
+  border-radius: 3px; padding: 2px 5px; margin-bottom: 2px;
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background .15s;
+}
+.cal-event:hover { background: rgba(124,92,252,.3); }
+.cal-event.st-nuevo        { border-color: var(--blue);    background: rgba(59,130,246,.1); }
+.cal-event.st-en_produccion{ border-color: var(--accent);  background: rgba(245,197,24,.1); }
+.cal-event.st-completado   { border-color: var(--green);   background: rgba(34,197,94,.1); }
+.cal-event.st-entregado    { border-color: var(--primary); background: rgba(124,92,252,.1); }
+.cal-event.st-overdue      { border-color: var(--red);     background: rgba(239,68,68,.1); }
+@media (max-width: 600px) { .cal-cell { min-height: 60px; } }
+
+/* ── Inventory ───────────────────────────────────────────────────────────────── */
+.stock-bar-wrap { background: rgba(255,255,255,.06); border-radius: 100px; height: 6px; width: 80px; display: inline-block; vertical-align: middle; }
+.stock-bar { height: 100%; border-radius: 100px; }
+.stock-bar.ok  { background: var(--green); }
+.stock-bar.low { background: var(--red); }
+.low-badge { display: inline-block; background: rgba(239,68,68,.15); color: #f87171; font-size: .7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+
+/* ── Print ───────────────────────────────────────────────────────────────────── */
+@media print {
+  body { background: #fff; color: #000; font-family: Arial, sans-serif; }
+  .sidebar, .topbar, .page-actions, .btn, #toast, .modal-overlay { display: none !important; }
+  .main { margin: 0; padding: 0; }
+  #print-ticket { display: block !important; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+}
+#print-ticket { display: none; }
+.ticket-wrap {
+  background: #fff; color: #111; padding: 28px; max-width: 680px;
+  font-family: Arial, sans-serif; font-size: 13px;
+}
+.ticket-header { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 16px; }
+.ticket-folio { font-size: 1.4rem; font-weight: 900; }
+.ticket-section { margin-bottom: 14px; }
+.ticket-section h4 { font-size: .75rem; text-transform: uppercase; letter-spacing: .07em; color: #555; margin-bottom: 6px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+.ticket-row { display: flex; justify-content: space-between; padding: 3px 0; }
+.ticket-render { max-width: 240px; max-height: 200px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px; margin-top: 8px; }
+.ticket-sign { margin-top: 32px; display: flex; gap: 40px; }
+.ticket-sign .sign-box { flex: 1; border-top: 1px solid #333; padding-top: 6px; font-size: .8rem; color: #555; }
+
+/* ── CRM ─────────────────────────────────────────────────────────────────────── */
+.client-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; cursor: pointer;
+  transition: border-color .15s;
+}
+.client-card:hover { border-color: var(--primary); }
+.client-card .c-name { font-weight: 700; font-size: 1rem; }
+.client-card .c-empresa { font-size: .82rem; color: var(--primary); }
+.client-card .c-meta { font-size: .8rem; color: var(--text-muted); margin-top: 8px; }
+
 /* ── Cotizador rápido ───────────────────────────────────────────────────────── */
 .quote-result {
   background: rgba(124,92,252,.08);

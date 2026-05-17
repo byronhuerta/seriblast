@@ -119,8 +119,11 @@ function buildSidebar() {
     add('dashboard', '📊', 'Dashboard');
     add('orders', '📋', 'Pedidos');
     add('kanban', '🗂️', 'Kanban');
-    add('cotizador', '🧮', 'Cotizador rápido');
+    add('calendar', '📅', 'Calendario');
+    add('clients', '👤', 'Clientes');
+    add('cotizador', '🧮', 'Cotizador');
     add('eficiencia', '⚡', 'Eficiencia');
+    add('inventario', '📦', 'Inventario');
     add('reports', '📈', 'Reportes');
     add('config-services', '⚙️', 'Servicios');
     add('config-fixed', '💰', 'Gastos fijos');
@@ -128,11 +131,14 @@ function buildSidebar() {
   } else if (currentUser.role === 'ventas') {
     add('orders', '📋', 'Pedidos');
     add('kanban', '🗂️', 'Kanban');
+    add('calendar', '📅', 'Calendario');
+    add('clients', '👤', 'Clientes');
     add('cotizador', '🧮', 'Cotizador');
     add('new-order', '➕', 'Nuevo pedido');
   } else {
     add('produccion', '🏭', 'Mi área');
     add('kanban', '🗂️', 'Kanban');
+    add('calendar', '📅', 'Calendario');
     add('produccion-all', '📋', 'Todos');
   }
 
@@ -168,8 +174,11 @@ async function renderView(view) {
       case 'dashboard': await renderDashboard(); break;
       case 'orders': await renderOrders(); break;
       case 'kanban': await renderKanban(); break;
+      case 'calendar': await renderCalendar(); break;
+      case 'clients': await renderClients(); break;
       case 'cotizador': await renderCotizador(); break;
       case 'eficiencia': await renderEficiencia(); break;
+      case 'inventario': await renderInventario(); break;
       case 'new-order': renderNewOrderForm(); break;
       case 'produccion': await renderProduccion(false); break;
       case 'produccion-all': await renderProduccion(true); break;
@@ -378,13 +387,34 @@ async function viewOrder(id) {
       ` : ''}
     </div>
 
+    <!-- Render del diseño (visible para todos) -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header">
+        <h3>Render / Diseño</h3>
+        <div style="display:flex;gap:8px">
+          <label class="btn btn-ghost btn-sm no-print" style="cursor:pointer">
+            📎 Subir imagen
+            <input type="file" accept="image/*" style="display:none" onchange="uploadRender('${o.id}',this)">
+          </label>
+          ${o.render_file ? `<button class="btn btn-danger btn-sm no-print" onclick="deleteRender('${o.id}')">Quitar</button>` : ''}
+          <button class="btn btn-ghost btn-sm no-print" onclick="printTicket('${o.id}')">🖨️ Imprimir ticket</button>
+        </div>
+      </div>
+      ${o.render_file
+        ? `<div class="render-box" style="cursor:default"><img src="/uploads/${o.render_file}" alt="${o.render_original || 'Render'}"></div>`
+        : `<div class="render-box" onclick="document.querySelector('#view input[type=file]').click()">
+             <div class="upload-hint">📷 Sin render todavía<br><small>Haz clic o sube una imagen de referencia para producción</small></div>
+           </div>`
+      }
+    </div>
+
     ${isAdmin || isProd ? `
     <div class="grid-2" style="margin-bottom:16px">
       <!-- Materials -->
       <div class="card">
         <div class="card-header">
           <h3>Materiales utilizados</h3>
-          <button class="btn btn-ghost btn-sm" onclick="openMaterialForm(${o.id})">+ Agregar</button>
+          <button class="btn btn-ghost btn-sm" onclick="openMaterialForm('${o.id}')">+ Agregar</button>
         </div>
         <div id="mat-list">${materialsList(o.materials, o.id)}</div>
       </div>
@@ -393,7 +423,7 @@ async function viewOrder(id) {
       <div class="card">
         <div class="card-header">
           <h3>Tiempo registrado</h3>
-          <button class="btn btn-ghost btn-sm" onclick="openLaborForm(${o.id})">+ Registrar</button>
+          <button class="btn btn-ghost btn-sm" onclick="openLaborForm('${o.id}')">+ Registrar</button>
         </div>
         <div id="labor-list">${laborList(o.labor, o.id)}</div>
       </div>
@@ -969,6 +999,405 @@ $('modal-user-save').onclick = async () => {
     closeModal('modal-user');
     renderConfigUsers();
     toast(editUserId ? 'Usuario actualizado' : 'Usuario creado');
+  } catch (e) { toast(e.message, 'error'); }
+};
+
+/* ── Render upload ──────────────────────────────────────────────────────── */
+async function uploadRender(orderId, input) {
+  if (!input.files[0]) return;
+  const fd = new FormData();
+  fd.append('render', input.files[0]);
+  try {
+    const r = await fetch(`/api/orders/${orderId}/render`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    toast('Render actualizado');
+    viewOrder(orderId);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteRender(orderId) {
+  if (!confirm('¿Quitar el render de este pedido?')) return;
+  try {
+    await api(`/orders/${orderId}/render`, 'DELETE');
+    toast('Render eliminado');
+    viewOrder(orderId);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function printTicket(orderId) {
+  api(`/orders/${orderId}`).then(o => {
+    const c = o.costos;
+    const isAdmin = currentUser.role === 'admin';
+    $('print-ticket').innerHTML = `
+      <div class="ticket-wrap">
+        <div class="ticket-header">
+          <div>
+            <div class="ticket-folio">${o.folio}</div>
+            <div style="font-size:.85rem;color:#555">Orden de producción</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700">Seriblast</div>
+            <div style="font-size:.82rem;color:#555">Emitido: ${fmtDate(new Date().toISOString())}</div>
+          </div>
+        </div>
+        <div class="ticket-section">
+          <h4>Datos del pedido</h4>
+          <div class="ticket-row"><span>Cliente</span><strong>${o.cliente}</strong></div>
+          <div class="ticket-row"><span>Servicio</span><span>${o.servicio_nombre}</span></div>
+          <div class="ticket-row"><span>Área</span><span>${AREAS[o.area] || o.area}</span></div>
+          <div class="ticket-row"><span>Cantidad</span><strong>${o.cantidad} pzas</strong></div>
+          <div class="ticket-row"><span>Fecha entrega</span><strong>${fmtDate(o.fecha_entrega)}</strong></div>
+          ${o.notas_produccion ? `<div class="ticket-row"><span>Notas</span><em>${o.notas_produccion}</em></div>` : ''}
+        </div>
+        ${o.descripcion ? `<div class="ticket-section"><h4>Descripción del trabajo</h4><p>${o.descripcion}</p></div>` : ''}
+        ${o.render_file ? `<div class="ticket-section"><h4>Render / Referencia visual</h4><img src="/uploads/${o.render_file}" class="ticket-render"></div>` : ''}
+        ${isAdmin && c ? `
+        <div class="ticket-section">
+          <h4>Costos (confidencial)</h4>
+          <div class="ticket-row"><span>Precio venta</span><strong>$${fmt(c.precioVenta)}</strong></div>
+          <div class="ticket-row"><span>Costo estimado</span><span>$${fmt(c.costoTotal)}</span></div>
+          <div class="ticket-row"><span>Margen</span><strong>${c.margen}%</strong></div>
+        </div>` : ''}
+        <div class="ticket-sign">
+          <div class="sign-box">Recibido por producción</div>
+          <div class="sign-box">Revisado / Entregado</div>
+        </div>
+      </div>`;
+    window.print();
+  }).catch(e => toast(e.message, 'error'));
+}
+
+/* ── Calendar ───────────────────────────────────────────────────────────── */
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth() + 1;
+
+async function renderCalendar() {
+  $('view').innerHTML = `
+    <div class="cal-nav">
+      <button class="btn btn-ghost btn-sm" onclick="calNav(-1)">← Anterior</button>
+      <h2 id="cal-title"></h2>
+      <button class="btn btn-ghost btn-sm" onclick="calNav(1)">Siguiente →</button>
+    </div>
+    <div id="cal-body"></div>
+  `;
+  await drawCalendar();
+}
+
+async function calNav(dir) {
+  calMonth += dir;
+  if (calMonth > 12) { calMonth = 1; calYear++; }
+  if (calMonth < 1)  { calMonth = 12; calYear--; }
+  await drawCalendar();
+}
+
+async function drawCalendar() {
+  const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  $('cal-title').textContent = `${MONTHS[calMonth-1]} ${calYear}`;
+
+  const list = await api(`/calendar?year=${calYear}&month=${calMonth}`);
+  const byDay = {};
+  for (const o of list) {
+    const d = (o.fecha_entrega || '').slice(8, 10);
+    if (d) { if (!byDay[d]) byDay[d] = []; byDay[d].push(o); }
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayDay = today.slice(8, 10);
+  const todayMonth = today.slice(0, 7);
+  const thisMonth = `${calYear}-${String(calMonth).padStart(2,'0')}`;
+
+  const firstDow = new Date(calYear, calMonth - 1, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+  const prevDays = new Date(calYear, calMonth - 1, 0).getDate();
+
+  const DAYS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  let html = `<div class="cal-grid">`;
+  html += DAYS.map(d => `<div class="cal-day-name">${d}</div>`).join('');
+
+  // prev month filler
+  for (let i = firstDow - 1; i >= 0; i--) {
+    html += `<div class="cal-cell other-month"><div class="cal-num">${prevDays - i}</div></div>`;
+  }
+
+  // current month
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dd = String(day).padStart(2,'0');
+    const isToday = thisMonth === todayMonth.slice(0,7) && dd === todayDay;
+    const events = byDay[dd] || [];
+    const evHtml = events.map(o => {
+      const al = deliveryAlert(o.fecha_entrega, o.status);
+      const cls = al.cls === 'overdue' ? 'st-overdue' : `st-${o.status}`;
+      return `<div class="cal-event ${cls}" onclick="viewOrder('${o.id}')" title="${o.cliente}">${o.folio} · ${o.cliente}</div>`;
+    }).join('');
+    html += `<div class="cal-cell ${isToday ? 'today' : ''}"><div class="cal-num">${day}</div>${evHtml}</div>`;
+  }
+
+  // next month filler
+  const total = firstDow + daysInMonth;
+  const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let i = 1; i <= remaining; i++) {
+    html += `<div class="cal-cell other-month"><div class="cal-num">${i}</div></div>`;
+  }
+  html += '</div>';
+
+  $('cal-body').innerHTML = html;
+}
+
+/* ── Clients (CRM) ──────────────────────────────────────────────────────── */
+let editClientId = null;
+
+async function renderClients() {
+  const list = await api('/clients');
+  $('view').innerHTML = `
+    <div class="page-top">
+      <div class="page-title"><h1>Clientes</h1><p>${list.length} cliente(s)</p></div>
+      <button class="btn btn-primary" onclick="openClientModal()">+ Nuevo cliente</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <input type="text" id="cl-search" placeholder="Buscar por nombre o empresa..." oninput="filterClients()" style="max-width:280px">
+    </div>
+    <div class="grid-3" id="clients-grid">
+      ${clientCards(list)}
+    </div>
+  `;
+  window._allClients = list;
+}
+
+function clientCards(list) {
+  if (!list.length) return '<div class="empty" style="grid-column:1/-1"><div class="icon">👤</div>Sin clientes registrados</div>';
+  return list.map(c => `
+    <div class="client-card" onclick="viewClient('${c.id}')">
+      <div class="c-name">${c.nombre}</div>
+      ${c.empresa ? `<div class="c-empresa">${c.empresa}</div>` : ''}
+      <div class="c-meta">
+        ${c.telefono ? `📞 ${c.telefono}` : ''} ${c.email ? `· ✉️ ${c.email}` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function filterClients() {
+  const q = $('cl-search').value.toLowerCase();
+  const filtered = (window._allClients || []).filter(c =>
+    c.nombre.toLowerCase().includes(q) || (c.empresa || '').toLowerCase().includes(q)
+  );
+  $('clients-grid').innerHTML = clientCards(filtered);
+}
+
+async function viewClient(id) {
+  const [c, pedidos] = await Promise.all([
+    api('/clients').then(list => list.find(x => x.id === id)),
+    api(`/clients/${id}/orders`),
+  ]);
+  if (!c) return;
+  $('view').innerHTML = `
+    <div class="page-top">
+      <div>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('clients')" style="margin-bottom:12px">← Clientes</button>
+        <h1>${c.nombre}</h1>
+        ${c.empresa ? `<p class="muted">${c.empresa}</p>` : ''}
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="openClientModal('${c.id}')">Editar</button>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="card">
+        <h3 style="margin-bottom:12px">Información de contacto</h3>
+        ${c.telefono ? `<div class="cost-row"><span class="muted">Teléfono</span><span>${c.telefono}</span></div>` : ''}
+        ${c.email ? `<div class="cost-row"><span class="muted">Email</span><span>${c.email}</span></div>` : ''}
+        ${c.notas ? `<div style="margin-top:12px"><small class="muted">Notas</small><p style="margin-top:4px">${c.notas}</p></div>` : ''}
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px">Resumen</h3>
+        <div class="cost-row"><span class="muted">Total pedidos</span><strong>${pedidos.length}</strong></div>
+        <div class="cost-row"><span class="muted">Completados</span><strong>${pedidos.filter(p => ['completado','entregado'].includes(p.status)).length}</strong></div>
+        ${currentUser.role === 'admin' ? `<div class="cost-row"><span class="muted">Facturación total</span><strong>$${fmt(pedidos.reduce((s,p) => s + (p.precio_venta||0), 0))}</strong></div>` : ''}
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:12px">Historial de pedidos</h3>
+      ${ordersTable(pedidos)}
+    </div>
+  `;
+}
+
+function openClientModal(id = null) {
+  editClientId = id;
+  $('modal-client-title').textContent = id ? 'Editar cliente' : 'Nuevo cliente';
+  if (id) {
+    const c = (window._allClients || []).find(x => x.id === id);
+    if (c) {
+      $('cl-nombre').value = c.nombre || '';
+      $('cl-empresa').value = c.empresa || '';
+      $('cl-tel').value = c.telefono || '';
+      $('cl-email').value = c.email || '';
+      $('cl-notas').value = c.notas || '';
+    }
+  } else {
+    ['cl-nombre','cl-empresa','cl-tel','cl-email','cl-notas'].forEach(id => $(id) && ($(id).value = ''));
+  }
+  openModal('modal-client');
+}
+
+$('modal-client-save').onclick = async () => {
+  const body = {
+    nombre: $('cl-nombre').value.trim(),
+    empresa: $('cl-empresa').value.trim() || null,
+    telefono: $('cl-tel').value.trim() || null,
+    email: $('cl-email').value.trim() || null,
+    notas: $('cl-notas').value.trim() || null,
+  };
+  if (!body.nombre) return toast('El nombre es requerido', 'error');
+  try {
+    if (editClientId) await api(`/clients/${editClientId}`, 'PUT', body);
+    else await api('/clients', 'POST', body);
+    closeModal('modal-client');
+    navigate('clients');
+    toast(editClientId ? 'Cliente actualizado' : 'Cliente creado');
+  } catch (e) { toast(e.message, 'error'); }
+};
+
+/* ── Inventario ─────────────────────────────────────────────────────────── */
+let editInvId = null;
+
+async function renderInventario() {
+  const list = await api('/inventory');
+  const bajoMin = list.filter(i => i.activo && i.stock_actual < i.stock_minimo);
+
+  $('view').innerHTML = `
+    <div class="page-top">
+      <div class="page-title">
+        <h1>Inventario</h1>
+        <p>${list.length} material(es)${bajoMin.length ? ` · <span style="color:var(--red)">⚠️ ${bajoMin.length} bajo mínimo</span>` : ''}</p>
+      </div>
+      <button class="btn btn-primary" onclick="openInvModal()">+ Agregar material</button>
+    </div>
+    ${bajoMin.length ? `
+    <div class="card" style="border-color:var(--red);margin-bottom:16px">
+      <h3 style="color:var(--red);margin-bottom:10px">⚠️ Materiales por reponer</h3>
+      <div class="inline-list">
+        ${bajoMin.map(i => `<div class="pill" style="border-color:var(--red)">${i.nombre} — Stock: ${i.stock_actual} ${i.unidad} (mín. ${i.stock_minimo})</div>`).join('')}
+      </div>
+    </div>` : ''}
+    <div class="card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Material</th><th>Área</th><th>Stock</th><th>Mínimo</th><th>Unidad</th><th>Costo unit.</th><th>Valor stock</th><th></th></tr></thead>
+        <tbody>
+          ${list.map(i => {
+            const pct = i.stock_minimo > 0 ? Math.min((i.stock_actual / i.stock_minimo) * 100, 100) : 100;
+            const low = i.stock_actual < i.stock_minimo;
+            return `<tr>
+              <td><strong>${i.nombre}</strong>${low ? '<span class="low-badge">BAJO</span>' : ''}</td>
+              <td>${i.area ? (AREAS[i.area] || i.area) : 'General'}</td>
+              <td>
+                <div class="stock-bar-wrap"><div class="stock-bar ${low ? 'low' : 'ok'}" style="width:${pct}%"></div></div>
+                <strong style="margin-left:6px">${i.stock_actual}</strong>
+              </td>
+              <td>${i.stock_minimo}</td>
+              <td>${i.unidad}</td>
+              <td>$${fmt(i.costo_unitario)}</td>
+              <td>$${fmt(i.stock_actual * i.costo_unitario)}</td>
+              <td class="td-actions">
+                <button class="btn btn-ghost btn-sm" onclick="ajustarStock('${i.id}','${i.nombre}',${i.stock_actual},'${i.unidad}')">Ajustar</button>
+                <button class="btn btn-ghost btn-sm" onclick="openInvModal('${i.id}')">Editar</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function ajustarStock(id, nombre, actual, unidad) {
+  const el = document.createElement('div');
+  el.className = 'modal-overlay';
+  el.innerHTML = `
+    <div class="modal">
+      <h2>Ajustar stock: ${nombre}</h2>
+      <p class="muted" style="margin-bottom:16px">Stock actual: <strong>${actual} ${unidad}</strong></p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Operación</label>
+          <select id="adj-op">
+            <option value="set">Establecer cantidad exacta</option>
+            <option value="add">Agregar al stock</option>
+            <option value="sub">Descontar del stock</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Cantidad</label>
+          <input type="number" id="adj-qty" value="0" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveStockAdj('${id}',${actual},this)">Guardar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+async function saveStockAdj(id, actual, btn) {
+  const op  = $('adj-op').value;
+  const qty = parseFloat($('adj-qty').value) || 0;
+  let newStock = actual;
+  if (op === 'set') newStock = qty;
+  else if (op === 'add') newStock = actual + qty;
+  else newStock = Math.max(0, actual - qty);
+  try {
+    await api(`/inventory/${id}`, 'PUT', { stock_actual: newStock });
+    btn.closest('.modal-overlay').remove();
+    renderInventario();
+    toast('Stock actualizado');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function openInvModal(id = null) {
+  editInvId = id;
+  $('modal-inv-title').textContent = id ? 'Editar material' : 'Nuevo material';
+  if (id) {
+    api('/inventory').then(list => {
+      const i = list.find(x => x.id === id);
+      if (i) {
+        $('inv-nombre').value = i.nombre;
+        $('inv-area').value = i.area || '';
+        $('inv-unidad').value = i.unidad;
+        $('inv-costo').value = i.costo_unitario;
+        $('inv-stock').value = i.stock_actual;
+        $('inv-min').value = i.stock_minimo;
+      }
+    });
+  } else {
+    ['inv-nombre'].forEach(id => $(id) && ($(id).value = ''));
+    $('inv-area').value = '';
+    $('inv-unidad').value = 'pza';
+    $('inv-costo').value = 0;
+    $('inv-stock').value = 0;
+    $('inv-min').value = 0;
+  }
+  openModal('modal-inv');
+}
+
+$('modal-inv-save').onclick = async () => {
+  const body = {
+    nombre: $('inv-nombre').value.trim(),
+    area: $('inv-area').value || null,
+    unidad: $('inv-unidad').value || 'pza',
+    costo_unitario: parseFloat($('inv-costo').value) || 0,
+    stock_actual: parseFloat($('inv-stock').value) || 0,
+    stock_minimo: parseFloat($('inv-min').value) || 0,
+  };
+  if (!body.nombre) return toast('El nombre es requerido', 'error');
+  try {
+    if (editInvId) await api(`/inventory/${editInvId}`, 'PUT', body);
+    else await api('/inventory', 'POST', body);
+    closeModal('modal-inv');
+    renderInventario();
+    toast(editInvId ? 'Material actualizado' : 'Material creado');
   } catch (e) { toast(e.message, 'error'); }
 };
 
