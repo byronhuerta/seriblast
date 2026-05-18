@@ -36,15 +36,16 @@ function col(name) {
   return new Datastore({ filename: path.join(DATA_DIR, `${name}.db`), autoload: true });
 }
 
-const users    = col('users');
-const services = col('services');
-const fxCosts  = col('fixed_costs');
-const orders   = col('orders');
-const mats     = col('order_materials');
-const labor    = col('order_labor');
-const logs     = col('production_logs');
-const clients  = col('clients');
-const inventory= col('inventory');
+const users           = col('users');
+const services        = col('services');
+const fxCosts         = col('fixed_costs');
+const orders          = col('orders');
+const mats            = col('order_materials');
+const labor           = col('order_labor');
+const logs            = col('production_logs');
+const clients         = col('clients');
+const inventory       = col('inventory');
+const checklistConfig = col('checklist_config');
 
 // Ensure unique indexes
 users.ensureIndex({ fieldName: 'username', unique: true });
@@ -81,6 +82,30 @@ users.countAsync({}).then(async count => {
   await fc('Electricidad', 1500);
   await fc('Gas/compresor', 800);
   await fc('Mantenimiento maquinaria', 1000);
+});
+
+checklistConfig.countAsync({}).then(async count => {
+  if (count > 0) return;
+  const items = [
+    { area: 'sandblast', item: 'Grabado uniforme y completo' },
+    { area: 'sandblast', item: 'Sin rebabas ni bordes cortantes' },
+    { area: 'sandblast', item: 'Piezas limpias y sin polvo' },
+    { area: 'laser', item: 'Corte/grabado centrado según diseño' },
+    { area: 'laser', item: 'Profundidad de grabado correcta' },
+    { area: 'laser', item: 'Sin quemado excesivo alrededor' },
+    { area: 'dtf_textil', item: 'Colores fieles al diseño' },
+    { area: 'dtf_textil', item: 'Transfer bien adherido sin burbujas' },
+    { area: 'dtf_uv', item: 'Colores correctos' },
+    { area: 'dtf_uv', item: 'Adherencia completa al sustrato' },
+    { area: 'vitrificado', item: 'Color vitrificado homogéneo' },
+    { area: 'vitrificado', item: 'Sin grietas ni burbujas' },
+    { area: 'bordado', item: 'Sin hilos sueltos ni cortes' },
+    { area: 'bordado', item: 'Densidad y tensión correctas' },
+    { area: 'bordado', item: 'Colores de hilo correctos' },
+    { area: 'diseno', item: 'Archivo entregado en formatos solicitados' },
+    { area: 'diseno', item: 'Revisión de cliente aprobada' },
+  ];
+  for (const it of items) await checklistConfig.insertAsync({ ...it, activo: true });
 });
 
 function now() { return new Date().toISOString().slice(0, 19).replace('T', ' '); }
@@ -799,6 +824,166 @@ app.get('/api/calendar', auth, async (req, res) => {
 
     const list = await orders.findAsync(query);
     res.json(normAll(list));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Payment ───────────────────────────────────────────────────────────────────
+
+app.patch('/api/orders/:id/pago', auth, requireRole('admin', 'ventas'), async (req, res) => {
+  try {
+    const order = await orders.findOneAsync({ _id: req.params.id });
+    if (!order) return res.status(404).json({ error: 'No encontrado' });
+    const { anticipo, pagado, metodo_pago, fecha_pago, notas_pago } = req.body;
+    const $set = {};
+    if (anticipo !== undefined) $set.anticipo = parseFloat(anticipo) || 0;
+    if (pagado !== undefined) $set.pagado = !!pagado;
+    if (metodo_pago !== undefined) $set.metodo_pago = metodo_pago;
+    if (fecha_pago !== undefined) $set.fecha_pago = fecha_pago;
+    if (notas_pago !== undefined) $set.notas_pago = notas_pago;
+    await orders.updateAsync({ _id: req.params.id }, { $set });
+    await logs.insertAsync({ order_id: req.params.id, user_id: req.user.id, accion: pagado ? 'Pago completo registrado' : 'Pago actualizado', notas: metodo_pago || null, timestamp: now() });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Reports: monthly trends ───────────────────────────────────────────────────
+
+app.get('/api/reports/monthly', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const nowDate = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const prefix = `${y}-${String(m).padStart(2,'0')}`;
+      const desde = `${prefix}-01`;
+      const hasta = `${prefix}-${new Date(y, m, 0).getDate()}`;
+      const monthOrders = await orders.findAsync({
+        created_at: { $gte: desde, $lte: hasta + ' 23:59:59' },
+        status: { $nin: ['cancelado'] },
+      });
+      let venta = 0, costo = 0, merma = 0;
+      for (const o of monthOrders) {
+        const [ml, ll] = await Promise.all([mats.findAsync({ order_id: o._id }), labor.findAsync({ order_id: o._id })]);
+        const costs = await calcCosts(o, ml, ll);
+        venta += costs.precioVenta; costo += costs.costoTotal; merma += costs.costoMerma;
+      }
+      months.push({
+        label: d.toLocaleString('es-MX', { month: 'short', year: '2-digit' }),
+        venta: +venta.toFixed(2), costo: +costo.toFixed(2), merma: +merma.toFixed(2),
+        pedidos: monthOrders.length, utilidad: +(venta - costo).toFixed(2),
+      });
+    }
+    const byStatus = {};
+    for (const s of ['nuevo','en_produccion','completado','entregado','cancelado'])
+      byStatus[s] = await orders.countAsync({ status: s });
+    res.json({ months, byStatus });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Reports: cuentas por cobrar ───────────────────────────────────────────────
+
+app.get('/api/reports/cobrar', auth, requireRole('admin', 'ventas'), async (req, res) => {
+  try {
+    const pendientes = await orders.findAsync({
+      status: { $nin: ['cancelado'] },
+      $or: [{ pagado: false }, { pagado: { $exists: false } }],
+    });
+    const result = normAll(pendientes).map(o => ({
+      id: o.id, folio: o.folio, cliente: o.cliente, precio_venta: o.precio_venta || 0,
+      anticipo: o.anticipo || 0, saldo: (o.precio_venta || 0) - (o.anticipo || 0),
+      status: o.status, fecha_entrega: o.fecha_entrega,
+    }));
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Reports: tiempos estándar vs reales ───────────────────────────────────────
+
+app.get('/api/reports/tiempos', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const query = { status: { $in: ['completado','entregado'] }, horas_reales: { $gt: 0 }, servicio_id: { $ne: null } };
+    if (desde || hasta) {
+      query.completed_at = {};
+      if (desde) query.completed_at.$gte = desde;
+      if (hasta) query.completed_at.$lte = hasta + ' 23:59:59';
+    }
+    const done = await orders.findAsync(query);
+    const bySvc = {};
+    for (const o of done) {
+      const svc = await services.findOneAsync({ _id: o.servicio_id });
+      if (!svc) continue;
+      if (!bySvc[o.servicio_id]) bySvc[o.servicio_id] = { nombre: svc.nombre, area: svc.area, std: svc.tiempo_estimado_hrs, rows: [] };
+      const esp = svc.tiempo_estimado_hrs * (o.cantidad || 1);
+      const real = o.horas_reales;
+      bySvc[o.servicio_id].rows.push({ folio: o.folio, cantidad: o.cantidad, esp: +esp.toFixed(2), real: +real.toFixed(2), variacion: +(real - esp).toFixed(2), variacionPct: +(esp > 0 ? (real - esp) / esp * 100 : 0).toFixed(1) });
+    }
+    const result = Object.values(bySvc).map(s => {
+      const n = s.rows.length;
+      const avgEsp = s.rows.reduce((sum, r) => sum + r.esp, 0) / n;
+      const avgReal = s.rows.reduce((sum, r) => sum + r.real, 0) / n;
+      return { nombre: s.nombre, area: s.area, std: s.std, n, avgEsp: +avgEsp.toFixed(2), avgReal: +avgReal.toFixed(2), avgVar: +(avgReal - avgEsp).toFixed(2), avgVarPct: +(avgEsp > 0 ? (avgReal - avgEsp) / avgEsp * 100 : 0).toFixed(1), rows: s.rows };
+    }).sort((a, b) => b.avgVarPct - a.avgVarPct);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Reports: merma detallada ──────────────────────────────────────────────────
+
+app.get('/api/reports/merma', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const query = { piezas_merma: { $gt: 0 } };
+    if (desde || hasta) {
+      query.completed_at = {};
+      if (desde) query.completed_at.$gte = desde;
+      if (hasta) query.completed_at.$lte = hasta + ' 23:59:59';
+    }
+    const mermaOrders = await orders.findAsync(query);
+    const porArea = {};
+    for (const o of mermaOrders) {
+      if (!porArea[o.area]) porArea[o.area] = { area: o.area, totalPzas: 0, totalMerma: 0, costoMerma: 0, pedidos: [] };
+      const a = porArea[o.area];
+      a.totalPzas += (o.cantidad || 0) + (o.piezas_merma || 0);
+      a.totalMerma += o.piezas_merma || 0;
+      a.costoMerma += o.costo_merma || 0;
+      const pct = ((o.piezas_merma || 0) / ((o.cantidad || 1) + (o.piezas_merma || 0))) * 100;
+      a.pedidos.push({ folio: o.folio, cliente: o.cliente, servicio: o.servicio_nombre, cantidad: o.cantidad, pzas_merma: o.piezas_merma, costo_merma: o.costo_merma || 0, pct: +pct.toFixed(1) });
+    }
+    const result = Object.values(porArea).map(a => ({
+      ...a,
+      pctMerma: a.totalPzas > 0 ? +((a.totalMerma / a.totalPzas) * 100).toFixed(1) : 0,
+      costoMerma: +a.costoMerma.toFixed(2),
+    })).sort((a, b) => b.pctMerma - a.pctMerma);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Checklist config ──────────────────────────────────────────────────────────
+
+app.get('/api/checklist/config', auth, async (req, res) => {
+  try {
+    const q = { activo: true };
+    if (req.query.area) q.area = req.query.area;
+    res.json(normAll(await checklistConfig.findAsync(q).sort({ area: 1 })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/checklist/config', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { area, item } = req.body;
+    if (!area || !item) return res.status(400).json({ error: 'Faltan campos' });
+    const doc = await checklistConfig.insertAsync({ area, item, activo: true });
+    res.json({ id: doc._id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/checklist/config/:id', auth, requireRole('admin'), async (req, res) => {
+  try {
+    await checklistConfig.updateAsync({ _id: req.params.id }, { $set: { activo: false } });
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

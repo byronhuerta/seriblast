@@ -160,6 +160,11 @@
       <label>Notas de producción</label>
       <textarea id="c-notas" placeholder="Observaciones del proceso..."></textarea>
     </div>
+    <!-- Quality checklist injected here -->
+    <div id="c-checklist-wrap" style="display:none">
+      <div class="checklist-header">✅ Checklist de calidad</div>
+      <div id="c-checklist-items"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-complete')">Cancelar</button>
       <button class="btn btn-success" id="modal-complete-save">Completar pedido</button>
@@ -362,12 +367,57 @@
   </div>
 </div>
 
+<!-- Payment Modal -->
+<div class="modal-overlay hidden" id="modal-pago">
+  <div class="modal">
+    <h2>Registro de pago</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Anticipo recibido ($)</label>
+        <input type="number" id="p-anticipo" value="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Método de pago</label>
+        <select id="p-metodo">
+          <option value="">— Sin especificar —</option>
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="cheque">Cheque</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Fecha de pago</label>
+        <input type="date" id="p-fecha">
+      </div>
+      <div class="form-group">
+        <label>¿Pagado completo?</label>
+        <select id="p-pagado">
+          <option value="0">No (anticipo / pendiente)</option>
+          <option value="1">Sí, liquidado</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notas de pago</label>
+      <textarea id="p-notas" placeholder="Referencia, número de transferencia..." style="min-height:60px"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-pago')">Cancelar</button>
+      <button class="btn btn-primary" id="modal-pago-save">Guardar pago</button>
+    </div>
+  </div>
+</div>
+
 <!-- Print ticket (hidden, shown on print) -->
 <div id="print-ticket"></div>
 
 <!-- Toast -->
 <div id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

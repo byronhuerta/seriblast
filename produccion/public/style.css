@@ -550,3 +550,50 @@ tr.row-today td    { background: rgba(249,115,22,.04); }
   font-size: 2rem; font-weight: 800; color: var(--primary); margin: 8px 0;
 }
 .quote-result .price-sub { font-size: .88rem; color: var(--text-muted); }
+
+/* ── Charts ──────────────────────────────────────────────────────────────────── */
+.chart-wrap { position:relative; height:260px; }
+.chart-wrap-sm { position:relative; height:200px; }
+
+/* ── Payment badges ──────────────────────────────────────────────────────────── */
+.pago-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 8px; border-radius:20px; font-size:.74rem; font-weight:600;
+}
+.pago-badge.pagado { background:rgba(39,209,103,.15); color:var(--green); }
+.pago-badge.anticipo { background:rgba(245,197,24,.12); color:var(--accent); }
+.pago-badge.pendiente { background:rgba(255,80,80,.12); color:var(--red); }
+
+/* ── Checklist de calidad ────────────────────────────────────────────────────── */
+.checklist-header {
+  font-size:.85rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--primary); margin:16px 0 10px; padding-bottom:6px;
+  border-bottom:1px solid var(--border);
+}
+.checklist-item {
+  display:flex; align-items:center; gap:10px; padding:7px 0;
+  border-bottom:1px solid rgba(255,255,255,.04); font-size:.9rem;
+}
+.checklist-item:last-child { border-bottom:none; }
+.checklist-item input[type=checkbox] { width:16px; height:16px; accent-color:var(--green); }
+.checklist-item.checked label { color:var(--green); }
+
+/* ── Tiempos & Merma views ───────────────────────────────────────────────────── */
+.variacion-badge {
+  display:inline-block; padding:2px 8px; border-radius:20px; font-size:.78rem; font-weight:700;
+}
+.variacion-badge.over { background:rgba(255,80,80,.15); color:var(--red); }
+.variacion-badge.under { background:rgba(39,209,103,.15); color:var(--green); }
+.variacion-badge.ok { background:rgba(255,255,255,.07); color:var(--text-muted); }
+
+.merma-bar-wrap { background:rgba(255,255,255,.06); border-radius:4px; height:8px; overflow:hidden; margin:6px 0; }
+.merma-bar { height:100%; border-radius:4px; transition:width .5s; }
+.merma-bar.low { background:var(--green); }
+.merma-bar.mid { background:var(--accent); }
+.merma-bar.high { background:var(--red); }
+
+/* ── Cobrar (accounts receivable) ────────────────────────────────────────────── */
+.cobrar-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); font-size:.88rem; }
+.cobrar-row:last-child { border-bottom:none; }
+.saldo-amount { font-weight:700; color:var(--red); }
+.saldo-ok { font-weight:700; color:var(--green); }

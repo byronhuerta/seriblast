@@ -121,18 +121,24 @@ function buildSidebar() {
     add('kanban', '🗂️', 'Kanban');
     add('calendar', '📅', 'Calendario');
     add('clients', '👤', 'Clientes');
+    add('cobrar', '💳', 'Por cobrar');
     add('cotizador', '🧮', 'Cotizador');
     add('eficiencia', '⚡', 'Eficiencia');
+    add('tendencias', '📈', 'Tendencias');
+    add('tiempos', '⏱️', 'Tiempos');
+    add('merma', '📉', 'Merma');
     add('inventario', '📦', 'Inventario');
-    add('reports', '📈', 'Reportes');
+    add('reports', '📋', 'Reportes');
     add('config-services', '⚙️', 'Servicios');
     add('config-fixed', '💰', 'Gastos fijos');
     add('config-users', '👥', 'Usuarios');
+    add('config-checklist', '✅', 'Checklists');
   } else if (currentUser.role === 'ventas') {
     add('orders', '📋', 'Pedidos');
     add('kanban', '🗂️', 'Kanban');
     add('calendar', '📅', 'Calendario');
     add('clients', '👤', 'Clientes');
+    add('cobrar', '💳', 'Por cobrar');
     add('cotizador', '🧮', 'Cotizador');
     add('new-order', '➕', 'Nuevo pedido');
   } else {
@@ -178,6 +184,10 @@ async function renderView(view) {
       case 'clients': await renderClients(); break;
       case 'cotizador': await renderCotizador(); break;
       case 'eficiencia': await renderEficiencia(); break;
+      case 'tendencias': await renderTendencias(); break;
+      case 'tiempos': await renderTiempos(); break;
+      case 'merma': await renderMermaAnalysis(); break;
+      case 'cobrar': await renderCobrar(); break;
       case 'inventario': await renderInventario(); break;
       case 'new-order': renderNewOrderForm(); break;
       case 'produccion': await renderProduccion(false); break;
@@ -186,6 +196,7 @@ async function renderView(view) {
       case 'config-services': await renderConfigServices(); break;
       case 'config-fixed': await renderConfigFixed(); break;
       case 'config-users': await renderConfigUsers(); break;
+      case 'config-checklist': await renderConfigChecklist(); break;
       default: el.innerHTML = '<div class="empty"><div class="icon">🔍</div>Vista no encontrada</div>';
     }
   } catch (e) {
@@ -265,11 +276,12 @@ function filterOrders() {
 
 function ordersTable(orders, minimal = false) {
   if (!orders.length) return '<div class="empty"><div class="icon">📭</div>Sin pedidos</div>';
+  const isAdmin = currentUser.role === 'admin';
   return `<div class="table-wrap"><table>
     <thead><tr>
       <th>Folio</th><th>Cliente</th><th>Servicio</th><th>Área</th>
       ${!minimal ? '<th>Cantidad</th>' : ''}
-      <th>Estatus</th><th>Entrega</th><th></th>
+      <th>Estatus</th>${isAdmin ? '<th>Pago</th>' : ''}<th>Entrega</th><th></th>
     </tr></thead>
     <tbody>
       ${orders.map(o => {
@@ -281,6 +293,7 @@ function ordersTable(orders, minimal = false) {
           <td>${AREAS[o.area] || o.area}</td>
           ${!minimal ? `<td>${o.cantidad}</td>` : ''}
           <td>${badge(o.status)}</td>
+          ${isAdmin ? `<td>${pagoStatusBadge(o)}</td>` : ''}
           <td>${fmtDate(o.fecha_entrega)}${al.tag}</td>
           <td><button class="btn btn-ghost btn-sm" onclick="viewOrder('${o.id}')">Ver →</button></td>
         </tr>`;
@@ -309,15 +322,18 @@ async function viewOrder(id) {
 
   const statusActions = [];
   if (isAdmin || isProd) {
-    if (o.status === 'nuevo') statusActions.push(`<button class="btn btn-warning btn-sm" onclick="changeStatus(${o.id},'en_produccion')">Iniciar producción</button>`);
-    if (o.status === 'en_produccion') statusActions.push(`<button class="btn btn-success btn-sm" onclick="openCompleteModal(${o.id})">Marcar completado</button>`);
+    if (o.status === 'nuevo') statusActions.push(`<button class="btn btn-warning btn-sm" onclick="changeStatus('${o.id}','en_produccion')">Iniciar producción</button>`);
+    if (o.status === 'en_produccion') statusActions.push(`<button class="btn btn-success btn-sm" onclick="openCompleteModal('${o.id}')">Marcar completado</button>`);
   }
   if (isAdmin || isVentas) {
-    if (o.status === 'completado') statusActions.push(`<button class="btn btn-primary btn-sm" onclick="changeStatus(${o.id},'entregado')">Marcar entregado</button>`);
-    if (!['entregado','cancelado'].includes(o.status)) statusActions.push(`<button class="btn btn-danger btn-sm" onclick="changeStatus(${o.id},'cancelado')">Cancelar</button>`);
+    if (o.status === 'completado') statusActions.push(`<button class="btn btn-primary btn-sm" onclick="changeStatus('${o.id}','entregado')">Marcar entregado</button>`);
+    if (!['entregado','cancelado'].includes(o.status)) statusActions.push(`<button class="btn btn-danger btn-sm" onclick="changeStatus('${o.id}','cancelado')">Cancelar</button>`);
   }
   if (isAdmin && !['entregado','cancelado'].includes(o.status)) {
-    statusActions.push(`<button class="btn btn-ghost btn-sm" onclick="openOrderModal(${o.id})">Editar</button>`);
+    statusActions.push(`<button class="btn btn-ghost btn-sm" onclick="openOrderModal('${o.id}')">Editar</button>`);
+  }
+  if ((isAdmin || isVentas) && !['cancelado'].includes(o.status)) {
+    statusActions.push(`<button class="btn btn-ghost btn-sm" onclick="openPaymentModal('${o.id}',${o.precio_venta||0},${o.anticipo||0},${o.pagado||false})">💳 Pago</button>`);
   }
 
   $('view').innerHTML = `
@@ -342,6 +358,9 @@ async function viewOrder(id) {
         ${o.completed_at ? `<div class="cost-row"><span class="muted">Completado</span><span>${fmtDate(o.completed_at)}</span></div>` : ''}
         ${o.horas_reales ? `<div class="cost-row"><span class="muted">Horas reales</span><span>${o.horas_reales}h</span></div>` : ''}
         ${o.piezas_merma ? `<div class="cost-row"><span class="muted">Piezas de merma</span><span style="color:var(--red)">${o.piezas_merma} pzas</span></div>` : ''}
+        ${isAdmin && o.precio_venta ? `<div class="cost-row"><span class="muted">Pago</span><span>${pagoStatusBadge(o)}</span></div>` : ''}
+        ${isAdmin && o.metodo_pago ? `<div class="cost-row"><span class="muted">Método pago</span><span>${o.metodo_pago}</span></div>` : ''}
+        ${isAdmin && o.notas_pago ? `<div class="cost-row"><span class="muted">Nota pago</span><span class="muted" style="font-size:.82rem">${o.notas_pago}</span></div>` : ''}
         ${o.descripcion ? `<div style="margin-top:12px"><small class="muted">Descripción</small><p style="margin-top:4px">${o.descripcion}</p></div>` : ''}
         ${o.notas_produccion ? `<div style="margin-top:12px"><small class="muted">Notas producción</small><p style="margin-top:4px;color:var(--accent)">${o.notas_produccion}</p></div>` : ''}
       </div>
@@ -654,35 +673,54 @@ async function changeStatus(id, status) {
 }
 
 /* ── Complete modal ─────────────────────────────────────────────────────── */
-function openCompleteModal(id) {
-  completeOrderId = id;
-  $('c-horas').value = 0;
-  $('c-costo-hora').value = 150;
-  $('c-merma-pzas').value = 0;
-  $('c-merma-costo').value = 0;
-  $('c-notas').value = '';
-  openModal('modal-complete');
+async function openCompleteModal(id) {
+  // Fetch order to get area for checklist
+  try {
+    const o = await api(`/orders/${id}`);
+    openCompleteModalWithChecklist(id, o.area);
+  } catch {
+    completeOrderId = id;
+    $('c-horas').value = 0; $('c-costo-hora').value = 150;
+    $('c-merma-pzas').value = 0; $('c-merma-costo').value = 0; $('c-notas').value = '';
+    $('c-checklist-wrap').style.display = 'none';
+    openModal('modal-complete');
+  }
 }
 
 $('modal-complete-save').onclick = async () => {
   const horas = parseFloat($('c-horas').value) || 0;
   const costoHora = parseFloat($('c-costo-hora').value) || 0;
+
+  // Collect checklist results
+  const wrap = $('c-checklist-wrap');
+  let checklistLog = null;
+  if (wrap && wrap.style.display !== 'none') {
+    const allItems = JSON.parse(wrap.dataset.items || '[]');
+    const checked = [];
+    const unchecked = [];
+    allItems.forEach((item, i) => {
+      (document.getElementById(`cl-${i}`)?.checked ? checked : unchecked).push(item);
+    });
+    if (allItems.length) {
+      checklistLog = `✅ Checklist (${checked.length}/${allItems.length}): ${checked.join(', ')}${unchecked.length ? ` | Pendiente: ${unchecked.join(', ')}` : ''}`;
+    }
+  }
+
+  const notasBase = $('c-notas').value.trim();
+  const notasFinal = [notasBase, checklistLog].filter(Boolean).join('\n') || null;
+
   try {
-    // Register labor entry
     if (horas > 0) {
       await api(`/orders/${completeOrderId}/labor`, 'POST', {
-        horas,
-        costo_hora: costoHora,
-        nombre_operador: currentUser.nombre,
+        horas, costo_hora: costoHora, nombre_operador: currentUser.nombre,
       });
     }
-    // Mark completed
     await api(`/orders/${completeOrderId}/status`, 'PATCH', {
       status: 'completado',
       horas_reales: horas,
       piezas_merma: parseInt($('c-merma-pzas').value) || 0,
       costo_merma: parseFloat($('c-merma-costo').value) || 0,
-      notas_produccion: $('c-notas').value.trim() || null,
+      notas_produccion: notasFinal,
     });
     closeModal('modal-complete');
     viewOrder(completeOrderId);
@@ -1689,6 +1727,395 @@ async function loadEficiencia() {
   } catch (e) {
     $('ef-content').innerHTML = `<div class="empty"><div class="icon">⚠️</div>${e.message}</div>`;
   }
+}
+
+/* ── Tendencias (Charts) ────────────────────────────────────────────────── */
+let _chartRevenue = null, _chartStatus = null, _chartMerma = null;
+
+function destroyCharts() {
+  [_chartRevenue, _chartStatus, _chartMerma].forEach(c => c?.destroy());
+  _chartRevenue = _chartStatus = _chartMerma = null;
+}
+
+async function renderTendencias() {
+  destroyCharts();
+  const data = await api('/reports/monthly');
+  const months = data.months;
+  const byStatus = data.byStatus;
+
+  $('view').innerHTML = `
+    <div class="page-title"><h1>Tendencias</h1><p>Últimos 6 meses de actividad</p></div>
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="card">
+        <h3 style="margin-bottom:14px">Ventas vs Costos (6 meses)</h3>
+        <div class="chart-wrap"><canvas id="ch-revenue"></canvas></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:14px">Pedidos por estatus (actual)</h3>
+        <div class="chart-wrap"><canvas id="ch-status"></canvas></div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <h3 style="margin-bottom:14px">Ganancia mensual</h3>
+      <div class="chart-wrap"><canvas id="ch-merma"></canvas></div>
+    </div>
+    <div class="grid-4" style="margin-bottom:16px">
+      ${months.slice(-3).reverse().map(m => `
+        <div class="stat-card">
+          <div class="label">${m.label}</div>
+          <div class="value">$${fmt(m.venta)}</div>
+          <div class="sub" style="color:${m.utilidad >= 0 ? 'var(--green)' : 'var(--red)'}">$${fmt(m.utilidad)} utilidad</div>
+        </div>`).join('')}
+      <div class="stat-card purple">
+        <div class="label">Pedidos activos</div>
+        <div class="value">${(byStatus.nuevo || 0) + (byStatus.en_produccion || 0)}</div>
+        <div class="sub">${byStatus.en_produccion || 0} en producción</div>
+      </div>
+    </div>
+  `;
+
+  const chartDefaults = { responsive: true, maintainAspectRatio: false };
+  const gridColor = 'rgba(255,255,255,.07)';
+
+  _chartRevenue = new Chart($('ch-revenue'), {
+    type: 'bar',
+    data: {
+      labels: months.map(m => m.label),
+      datasets: [
+        { label: 'Ventas', data: months.map(m => m.venta), backgroundColor: 'rgba(124,92,252,.7)', borderRadius: 4 },
+        { label: 'Costo', data: months.map(m => m.costo), backgroundColor: 'rgba(255,80,80,.5)', borderRadius: 4 },
+      ],
+    },
+    options: { ...chartDefaults, plugins: { legend: { labels: { color: '#aaa' } } }, scales: { x: { ticks: { color: '#aaa' }, grid: { color: gridColor } }, y: { ticks: { color: '#aaa' }, grid: { color: gridColor } } } },
+  });
+
+  const statusLabels = { nuevo: 'Nuevo', en_produccion: 'En producción', completado: 'Completado', entregado: 'Entregado', cancelado: 'Cancelado' };
+  const statusColors = ['#7c5cfc','#f5c518','#27d167','#3d9aff','#ff5050'];
+  _chartStatus = new Chart($('ch-status'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(byStatus).map(k => statusLabels[k] || k),
+      datasets: [{ data: Object.values(byStatus), backgroundColor: statusColors, borderWidth: 0 }],
+    },
+    options: { ...chartDefaults, plugins: { legend: { position: 'bottom', labels: { color: '#aaa', padding: 12 } } } },
+  });
+
+  _chartMerma = new Chart($('ch-merma'), {
+    type: 'line',
+    data: {
+      labels: months.map(m => m.label),
+      datasets: [
+        { label: 'Utilidad', data: months.map(m => m.utilidad), borderColor: '#27d167', backgroundColor: 'rgba(39,209,103,.1)', fill: true, tension: 0.4 },
+        { label: 'Merma (costo)', data: months.map(m => m.merma), borderColor: '#ff5050', backgroundColor: 'rgba(255,80,80,.08)', fill: true, tension: 0.4 },
+      ],
+    },
+    options: { ...chartDefaults, plugins: { legend: { labels: { color: '#aaa' } } }, scales: { x: { ticks: { color: '#aaa' }, grid: { color: gridColor } }, y: { ticks: { color: '#aaa' }, grid: { color: gridColor } } } },
+  });
+}
+
+/* ── Tiempos estándar vs reales ─────────────────────────────────────────── */
+async function renderTiempos() {
+  const today = new Date().toISOString().slice(0, 10);
+  const firstDay = today.slice(0, 8) + '01';
+  $('view').innerHTML = `
+    <div class="page-title"><h1>Tiempos: estándar vs real</h1><p>¿Cuánto tardamos realmente?</p></div>
+    <div class="filters" style="margin-bottom:20px">
+      <input type="date" id="t-desde" value="${firstDay}">
+      <input type="date" id="t-hasta" value="${today}">
+      <button class="btn btn-primary btn-sm" onclick="loadTiempos()">Calcular</button>
+    </div>
+    <div id="t-content"><div class="empty"><div class="icon">⏱️</div>Selecciona rango y haz clic en Calcular</div></div>
+  `;
+  await loadTiempos();
+}
+
+async function loadTiempos() {
+  const desde = $('t-desde').value;
+  const hasta = $('t-hasta').value;
+  try {
+    const data = await api(`/reports/tiempos?desde=${desde}&hasta=${hasta}`);
+    if (!data.length) {
+      $('t-content').innerHTML = '<div class="empty"><div class="icon">📭</div>Sin pedidos completados con horas registradas en este período</div>';
+      return;
+    }
+    $('t-content').innerHTML = `
+      <div class="card" style="margin-bottom:16px">
+        <div class="table-wrap"><table>
+          <thead><tr><th>Servicio</th><th>Área</th><th>Pedidos</th><th class="text-right">T.Estándar/pedido</th><th class="text-right">T.Real prom.</th><th class="text-right">Variación</th><th class="text-right">%</th></tr></thead>
+          <tbody>
+            ${data.map(s => {
+              const cls = s.avgVarPct > 20 ? 'over' : s.avgVarPct < -10 ? 'under' : 'ok';
+              const sign = s.avgVar > 0 ? '+' : '';
+              return `<tr>
+                <td><strong>${s.nombre}</strong></td>
+                <td><small class="muted">${AREAS[s.area] || s.area}</small></td>
+                <td>${s.n}</td>
+                <td class="text-right">${s.avgEsp}h</td>
+                <td class="text-right">${s.avgReal}h</td>
+                <td class="text-right">${sign}${s.avgVar}h</td>
+                <td class="text-right"><span class="variacion-badge ${cls}">${sign}${s.avgVarPct}%</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+      </div>
+      ${data.filter(s => s.avgVarPct > 20).length ? `
+      <div class="card" style="border-color:var(--red)">
+        <h3 style="color:var(--red);margin-bottom:10px">⚠️ Servicios que superan el estándar &gt;20%</h3>
+        <p class="muted" style="font-size:.88rem">Considera actualizar los tiempos estándar en la configuración de servicios o revisar el proceso.</p>
+        ${data.filter(s => s.avgVarPct > 20).map(s => `
+          <div class="cost-row"><span><strong>${s.nombre}</strong></span><span style="color:var(--red)">+${s.avgVarPct}% sobre el estándar (${s.avgReal}h real vs ${s.avgEsp}h esperado)</span></div>
+        `).join('')}
+      </div>` : ''}
+    `;
+  } catch (e) { $('t-content').innerHTML = `<div class="empty"><div class="icon">⚠️</div>${e.message}</div>`; }
+}
+
+/* ── Análisis de merma ──────────────────────────────────────────────────── */
+async function renderMermaAnalysis() {
+  const today = new Date().toISOString().slice(0, 10);
+  const firstDay = today.slice(0, 8) + '01';
+  $('view').innerHTML = `
+    <div class="page-title"><h1>Análisis de merma</h1><p>¿Dónde perdemos más piezas?</p></div>
+    <div class="filters" style="margin-bottom:20px">
+      <input type="date" id="m-desde" value="${firstDay}">
+      <input type="date" id="m-hasta" value="${today}">
+      <button class="btn btn-primary btn-sm" onclick="loadMermaAnalysis()">Analizar</button>
+    </div>
+    <div id="m-content"><div class="empty"><div class="icon">📉</div>Selecciona rango y haz clic en Analizar</div></div>
+  `;
+  await loadMermaAnalysis();
+}
+
+async function loadMermaAnalysis() {
+  const desde = $('m-desde').value;
+  const hasta = $('m-hasta').value;
+  try {
+    const data = await api(`/reports/merma?desde=${desde}&hasta=${hasta}`);
+    if (!data.length) {
+      $('m-content').innerHTML = '<div class="empty"><div class="icon">✅</div>Sin merma registrada en este período</div>';
+      return;
+    }
+    const totalMerma = data.reduce((s, a) => s + a.totalMerma, 0);
+    const totalCosto = data.reduce((s, a) => s + a.costoMerma, 0);
+
+    $('m-content').innerHTML = `
+      <div class="grid-3" style="margin-bottom:16px">
+        <div class="stat-card red"><div class="label">Total piezas merma</div><div class="value">${totalMerma}</div></div>
+        <div class="stat-card red"><div class="label">Costo total merma</div><div class="value">$${fmt(totalCosto)}</div></div>
+        <div class="stat-card"><div class="label">Áreas afectadas</div><div class="value">${data.length}</div></div>
+      </div>
+      ${data.map(a => {
+        const barCls = a.pctMerma >= 10 ? 'high' : a.pctMerma >= 5 ? 'mid' : 'low';
+        const barW = Math.min(a.pctMerma * 5, 100);
+        return `<div class="card" style="margin-bottom:16px${a.pctMerma >= 10 ? ';border-left:3px solid var(--red)' : ''}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3>${AREAS[a.area] || a.area}</h3>
+            <span style="font-size:1.4rem;font-weight:800;color:${a.pctMerma >= 10 ? 'var(--red)' : a.pctMerma >= 5 ? 'var(--accent)' : 'var(--green)'}">${a.pctMerma}%</span>
+          </div>
+          <div class="merma-bar-wrap"><div class="merma-bar ${barCls}" style="width:${barW}%"></div></div>
+          <div style="display:flex;gap:20px;margin:10px 0;font-size:.85rem">
+            <span class="muted">${a.totalMerma} pzas merma</span>
+            <span class="muted">$${fmt(a.costoMerma)} costo</span>
+            <span class="muted">${a.pedidos.length} pedido(s)</span>
+          </div>
+          <details style="margin-top:8px">
+            <summary class="muted" style="cursor:pointer;font-size:.82rem">Ver detalle de pedidos</summary>
+            <div class="table-wrap" style="margin-top:8px"><table>
+              <thead><tr><th>Folio</th><th>Cliente</th><th>Servicio</th><th>Pzas prod.</th><th>Pzas merma</th><th>Costo merma</th><th>% merma</th></tr></thead>
+              <tbody>
+                ${a.pedidos.sort((x,y) => y.pct - x.pct).map(p => `<tr>
+                  <td class="td-folio">${p.folio}</td>
+                  <td>${p.cliente}</td>
+                  <td><small class="muted">${p.servicio || '—'}</small></td>
+                  <td>${p.cantidad}</td>
+                  <td style="color:var(--red)">${p.pzas_merma}</td>
+                  <td>$${fmt(p.costo_merma)}</td>
+                  <td><span class="variacion-badge ${p.pct >= 10 ? 'over' : p.pct >= 5 ? 'ok' : 'under'}">${p.pct}%</span></td>
+                </tr>`).join('')}
+              </tbody>
+            </table></div>
+          </details>
+        </div>`;
+      }).join('')}
+    `;
+  } catch (e) { $('m-content').innerHTML = `<div class="empty"><div class="icon">⚠️</div>${e.message}</div>`; }
+}
+
+/* ── Control de pagos ───────────────────────────────────────────────────── */
+let pagoOrderId = null;
+
+function openPaymentModal(orderId, precioVenta, anticoActual, pagadoActual) {
+  pagoOrderId = orderId;
+  $('p-anticipo').value = anticoActual || 0;
+  $('p-metodo').value = '';
+  $('p-fecha').value = new Date().toISOString().slice(0, 10);
+  $('p-pagado').value = pagadoActual ? '1' : '0';
+  $('p-notas').value = '';
+  openModal('modal-pago');
+}
+
+$('modal-pago-save').onclick = async () => {
+  try {
+    await api(`/orders/${pagoOrderId}/pago`, 'PATCH', {
+      anticipo: parseFloat($('p-anticipo').value) || 0,
+      metodo_pago: $('p-metodo').value || null,
+      fecha_pago: $('p-fecha').value || null,
+      pagado: $('p-pagado').value === '1',
+      notas_pago: $('p-notas').value.trim() || null,
+    });
+    closeModal('modal-pago');
+    viewOrder(pagoOrderId);
+    toast('Pago actualizado');
+  } catch (e) { toast(e.message, 'error'); }
+};
+
+function pagoStatusBadge(o) {
+  if (o.pagado) return '<span class="pago-badge pagado">✓ Liquidado</span>';
+  if (o.anticipo > 0) return `<span class="pago-badge anticipo">Anticipo $${fmt(o.anticipo)}</span>`;
+  return '<span class="pago-badge pendiente">Sin pago</span>';
+}
+
+/* ── Cuentas por cobrar ─────────────────────────────────────────────────── */
+async function renderCobrar() {
+  const list = await api('/reports/cobrar');
+  const total = list.reduce((s, o) => s + o.saldo, 0);
+  const anticipo = list.reduce((s, o) => s + o.anticipo, 0);
+
+  $('view').innerHTML = `
+    <div class="page-title"><h1>Cuentas por cobrar</h1><p>Pedidos con saldo pendiente</p></div>
+    <div class="grid-3" style="margin-bottom:16px">
+      <div class="stat-card red"><div class="label">Saldo total pendiente</div><div class="value">$${fmt(total)}</div></div>
+      <div class="stat-card yellow"><div class="label">Anticipos recibidos</div><div class="value">$${fmt(anticipo)}</div></div>
+      <div class="stat-card purple"><div class="label">Pedidos pendientes</div><div class="value">${list.length}</div></div>
+    </div>
+    <div class="card">
+      ${list.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Folio</th><th>Cliente</th><th>Total</th><th>Anticipo</th><th>Saldo</th><th>Estatus</th><th>Entrega</th><th></th></tr></thead>
+        <tbody>
+          ${list.map(o => {
+            const al = deliveryAlert(o.fecha_entrega, o.status);
+            return `<tr class="row-${al.cls}">
+              <td class="td-folio">${o.folio}</td>
+              <td><strong>${o.cliente}</strong></td>
+              <td>$${fmt(o.precio_venta)}</td>
+              <td>${o.anticipo > 0 ? '$' + fmt(o.anticipo) : '—'}</td>
+              <td class="saldo-amount">$${fmt(o.saldo)}</td>
+              <td>${badge(o.status)}</td>
+              <td>${fmtDate(o.fecha_entrega)}${al.tag}</td>
+              <td><button class="btn btn-primary btn-sm" onclick="viewOrder('${o.id}')">Ver →</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>` : '<div class="empty"><div class="icon">✅</div>No hay cuentas por cobrar pendientes</div>'}
+    </div>
+  `;
+}
+
+/* ── Config: Checklist de calidad ───────────────────────────────────────── */
+async function renderConfigChecklist() {
+  const items = await api('/checklist/config');
+  const byArea = {};
+  for (const it of items) {
+    if (!byArea[it.area]) byArea[it.area] = [];
+    byArea[it.area].push(it);
+  }
+
+  $('view').innerHTML = `
+    <div class="page-top">
+      <div class="page-title"><h1>Checklist de calidad</h1><p>Puntos de control por área para marcar pedidos completados</p></div>
+      <button class="btn btn-primary" onclick="addChecklistItem()">+ Agregar punto</button>
+    </div>
+    ${Object.entries(AREAS).map(([area, label]) => {
+      const areaItems = byArea[area] || [];
+      return `<div class="card" style="margin-bottom:16px">
+        <div class="card-header"><h3>${label}</h3><span class="muted" style="font-size:.82rem">${areaItems.length} punto(s)</span></div>
+        ${areaItems.length ? areaItems.map(it => `
+          <div class="checklist-item">
+            <input type="checkbox" checked disabled>
+            <label style="flex:1">${it.item}</label>
+            <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:.75rem" onclick="deleteChecklistItem('${it.id}')">✕</button>
+          </div>`).join('') : '<p class="muted" style="font-size:.85rem">Sin puntos configurados</p>'}
+      </div>`;
+    }).join('')}
+  `;
+}
+
+function addChecklistItem() {
+  const el = document.createElement('div');
+  el.className = 'modal-overlay';
+  el.innerHTML = `
+    <div class="modal">
+      <h2>Nuevo punto de calidad</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Área</label>
+          <select id="cl-area-new">
+            ${Object.entries(AREAS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Punto de control *</label>
+        <input type="text" id="cl-item-new" placeholder="ej. Sin rebabas ni bordes cortantes">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveChecklistItem(this)">Guardar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+async function saveChecklistItem(btn) {
+  const area = $('cl-area-new').value;
+  const item = $('cl-item-new').value.trim();
+  if (!item) return toast('El punto es requerido', 'error');
+  try {
+    await api('/checklist/config', 'POST', { area, item });
+    btn.closest('.modal-overlay').remove();
+    renderConfigChecklist();
+    toast('Punto agregado');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteChecklistItem(id) {
+  if (!confirm('¿Eliminar este punto de calidad?')) return;
+  try {
+    await api(`/checklist/config/${id}`, 'DELETE');
+    renderConfigChecklist();
+    toast('Eliminado');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ── Checklist de calidad en complete modal ─────────────────────────────── */
+async function openCompleteModalWithChecklist(id, area) {
+  completeOrderId = id;
+  $('c-horas').value = 0;
+  $('c-costo-hora').value = 150;
+  $('c-merma-pzas').value = 0;
+  $('c-merma-costo').value = 0;
+  $('c-notas').value = '';
+
+  // Load checklist for this area
+  try {
+    const items = await api(`/checklist/config?area=${area}`);
+    const wrap = $('c-checklist-wrap');
+    const list = $('c-checklist-items');
+    if (items.length) {
+      list.innerHTML = items.map((it, i) => `
+        <div class="checklist-item" id="cl-row-${i}">
+          <input type="checkbox" id="cl-${i}" onchange="this.closest('.checklist-item').classList.toggle('checked',this.checked)">
+          <label for="cl-${i}">${it.item}</label>
+        </div>`).join('');
+      wrap.style.display = '';
+      wrap.dataset.items = JSON.stringify(items.map(it => it.item));
+    } else {
+      wrap.style.display = 'none';
+    }
+  } catch { $('c-checklist-wrap').style.display = 'none'; }
+
+  openModal('modal-complete');
 }
 
 /* ── Init ───────────────────────────────────────────────────────────────── */
