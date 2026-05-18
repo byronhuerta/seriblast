@@ -474,7 +474,7 @@ function materialsList(mats, orderId) {
   return `<div class="inline-list">${mats.map(m => `
     <div class="pill">
       ${m.material} · ${m.cantidad} ${m.unidad}${isAdmin ? ` · $${fmt(m.costo_unitario)}` : ''}
-      <button onclick="deleteMaterial(${orderId},${m.id})" title="Eliminar">✕</button>
+      <button onclick="deleteMaterial('${orderId}','${m.id}')" title="Eliminar">✕</button>
     </div>
   `).join('')}</div>`;
 }
@@ -485,7 +485,7 @@ function laborList(labor, orderId) {
   return `<div class="inline-list">${labor.map(l => `
     <div class="pill">
       ${l.nombre_operador} · ${l.horas}h${isAdmin && l.costo_hora ? ` · $${fmt(l.costo_hora)}/h` : ''}
-      <button onclick="deleteLabor(${orderId},${l.id})" title="Eliminar">✕</button>
+      <button onclick="deleteLabor('${orderId}','${l.id}')" title="Eliminar">✕</button>
     </div>
   `).join('')}</div>`;
 }
@@ -509,7 +509,7 @@ function openMaterialForm(orderId) {
       </div>
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveMaterial(${orderId})">Guardar</button>
+        <button class="btn btn-primary" onclick="saveMaterial('${orderId}')">Guardar</button>
       </div>
     </div>`;
   document.body.appendChild(el);
@@ -551,7 +551,7 @@ function openLaborForm(orderId) {
       ${isAdmin ? `<div class="form-group"><label>Costo por hora ($)</label><input id="l-rate" type="number" value="150" step="0.01"></div>` : '<input type="hidden" id="l-rate" value="0">'}
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveLabor(${orderId})">Guardar</button>
+        <button class="btn btn-primary" onclick="saveLabor('${orderId}')">Guardar</button>
       </div>
     </div>`;
   document.body.appendChild(el);
@@ -862,7 +862,7 @@ async function renderConfigServices() {
             <td>$${fmt(s.costo_hora)}</td>
             <td>$${fmt(s.costo_material_base + s.tiempo_estimado_hrs * s.costo_hora)}</td>
             <td>${s.activo ? '✅' : '❌'}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick="openSvcModal(${s.id})">Editar</button></td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openSvcModal('${s.id}')">Editar</button></td>
           </tr>`).join('')}
         </tbody>
       </table></div>
@@ -923,7 +923,7 @@ async function renderConfigFixed() {
             <td>${f.nombre}</td>
             <td>$${fmt(f.monto_mensual)}</td>
             <td>${f.activo ? '✅' : '❌'}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick="openFcModal(${f.id})">Editar</button></td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openFcModal('${f.id}')">Editar</button></td>
           </tr>`).join('')}
         </tbody>
       </table></div>
@@ -977,7 +977,7 @@ async function renderConfigUsers() {
             <td>${{ admin: '⚙️ Admin', ventas: '💼 Ventas', produccion: '🏭 Producción' }[u.role] || u.role}</td>
             <td>${u.area ? (AREAS[u.area] || u.area) : '—'}</td>
             <td>${u.activo ? '✅' : '❌'}</td>
-            <td><button class="btn btn-ghost btn-sm" onclick="openUserModal(${u.id})">Editar</button></td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openUserModal('${u.id}')">Editar</button></td>
           </tr>`).join('')}
         </tbody>
       </table></div>
