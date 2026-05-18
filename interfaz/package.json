@@ -1,5 +1,5 @@
 {
-  "name": "seriblast-produccion",
+  "name": "seriblast-interfaz",
   "version": "1.0.0",
   "description": "Sistema interno de producción y costos — Seriblast",
   "main": "server.js",
