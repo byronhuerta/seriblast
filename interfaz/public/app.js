@@ -12,7 +12,8 @@ let completeOrderId = null;
 const $ = id => document.getElementById(id);
 const AREAS = {
   sandblast: 'Sandblast', laser: 'Láser', dtf_textil: 'DTF Textil',
-  dtf_uv: 'DTF UV', vitrificado: 'Vitrificado', bordado: 'Bordado', diseno: 'Diseño'
+  dtf_uv: 'DTF UV', vitrificado: 'Vitrificado', bordado: 'Bordado',
+  serigrafia: 'Serigrafía', diseno: 'Diseño'
 };
 const STATUS = {
   nuevo: 'Nuevo', en_produccion: 'En producción',

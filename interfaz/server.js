@@ -102,6 +102,10 @@ checklistConfig.countAsync({}).then(async count => {
     { area: 'bordado', item: 'Sin hilos sueltos ni cortes' },
     { area: 'bordado', item: 'Densidad y tensión correctas' },
     { area: 'bordado', item: 'Colores de hilo correctos' },
+    { area: 'serigrafia', item: 'Colores de tinta correctos según diseño' },
+    { area: 'serigrafia', item: 'Registro de colores alineado sin desfase' },
+    { area: 'serigrafia', item: 'Tinta bien adherida sin manchas' },
+    { area: 'serigrafia', item: 'Piezas limpias sin residuos de emulsión' },
     { area: 'diseno', item: 'Archivo entregado en formatos solicitados' },
     { area: 'diseno', item: 'Revisión de cliente aprobada' },
   ];
