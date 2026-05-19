@@ -144,22 +144,27 @@
 <div class="modal-overlay hidden" id="modal-complete">
   <div class="modal">
     <h2>Marcar pedido completado</h2>
+    <div class="form-group admin-field">
+      <label>Costo total del proceso ($) <small style="color:var(--text-muted);font-weight:400">— ¿Cuánto te costó producir este lote?</small></label>
+      <input type="number" id="c-costo-proceso" value="" min="0" step="0.01" placeholder="ej. 800">
+      <small style="color:var(--text-muted)">Los gastos fijos del taller (renta, luz, maquinaria) se suman automáticamente.</small>
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label>Horas trabajadas</label>
         <input type="number" id="c-horas" value="0" min="0" step="0.25">
       </div>
-      <div class="form-group admin-field">
-        <label>Costo por hora ($)</label>
-        <input type="number" id="c-costo-hora" value="150" min="0" step="0.01">
-      </div>
-    </div>
-    <div class="form-row">
       <div class="form-group">
         <label>Piezas de merma</label>
         <input type="number" id="c-merma-pzas" value="0" min="0">
       </div>
-      <div class="form-group admin-field">
+    </div>
+    <div class="form-row admin-field">
+      <div class="form-group">
+        <label>Costo por hora ($)</label>
+        <input type="number" id="c-costo-hora" value="150" min="0" step="0.01">
+      </div>
+      <div class="form-group">
         <label>Costo de merma ($)</label>
         <input type="number" id="c-merma-costo" value="0" min="0" step="0.01">
       </div>

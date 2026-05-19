@@ -82,6 +82,7 @@ users.countAsync({}).then(async count => {
   await fc('Electricidad', 1500);
   await fc('Gas/compresor', 800);
   await fc('Mantenimiento maquinaria', 1000);
+  await fc('Renovación de maquinaria', 2000);
 });
 
 checklistConfig.countAsync({}).then(async count => {
@@ -401,7 +402,7 @@ app.put('/api/orders/:id', auth, requireRole('admin', 'ventas'), async (req, res
 
 app.patch('/api/orders/:id/status', auth, async (req, res) => {
   try {
-    const { status, notas_produccion, horas_reales, piezas_merma, costo_merma } = req.body;
+    const { status, notas_produccion, horas_reales, piezas_merma, costo_merma, costo_proceso } = req.body;
     const order = await orders.findOneAsync({ _id: req.params.id });
     if (!order) return res.status(404).json({ error: 'No encontrado' });
     if (req.user.role === 'produccion' && order.area !== req.user.area) {
@@ -420,6 +421,7 @@ app.patch('/api/orders/:id/status', auth, async (req, res) => {
     if (notas_produccion !== undefined) $set.notas_produccion = notas_produccion;
     if (horas_reales !== undefined) $set.horas_reales = horas_reales;
     if (piezas_merma !== undefined) $set.piezas_merma = piezas_merma;
+    if (costo_proceso !== undefined) $set.costo_proceso = parseFloat(costo_proceso) || 0;
     // Only admin can record monetary merma cost
     if (req.user.role === 'admin' && costo_merma !== undefined) $set.costo_merma = costo_merma;
 
@@ -483,8 +485,13 @@ app.delete('/api/orders/:id/labor/:lid', auth, async (req, res) => {
 // ── Cost calculation ──────────────────────────────────────────────────────────
 
 async function calcCosts(order, matList, laborList) {
+  // Costo de producción: si se capturó costo_proceso directo, se usa ese.
+  // Si no, se suma materiales + mano de obra del detalle.
   const costoMateriales = matList.reduce((s, m) => s + (m.cantidad * m.costo_unitario), 0);
-  const costoManoObra = laborList.reduce((s, l) => s + (l.horas * l.costo_hora), 0);
+  const costoManoObra   = laborList.reduce((s, l) => s + (l.horas * l.costo_hora), 0);
+  const costoProduccion = order.costo_proceso != null
+    ? (order.costo_proceso || 0)
+    : costoMateriales + costoManoObra;
   const costoMerma = order.costo_merma || 0;
 
   const allFc = await fxCosts.findAsync({ activo: true });
@@ -492,33 +499,37 @@ async function calcCosts(order, matList, laborList) {
   const costoPorHora = totalFixed / 176; // 22 días × 8h
   const costoFijos = costoPorHora * (order.horas_reales || 0);
 
-  const costoTotal = costoMateriales + costoManoObra + costoMerma + costoFijos;
+  const costoTotal = costoProduccion + costoMerma + costoFijos;
   const precioVenta = order.precio_venta || 0;
   const utilidad = precioVenta - costoTotal;
-  const margen = precioVenta > 0 ? (utilidad / precioVenta) * 100 : 0;
+  // Margen sobre precio (%), markup sobre costo (x veces)
+  const margen  = precioVenta > 0 ? (utilidad / precioVenta) * 100 : 0;
+  const markup  = costoTotal > 0  ? (precioVenta / costoTotal) : 0;
 
   const cantidad = order.cantidad || 1;
   const u = n => +(n / cantidad).toFixed(2);
 
   return {
     cantidad,
-    // Totales
-    costoMateriales: +costoMateriales.toFixed(2),
-    costoManoObra: +costoManoObra.toFixed(2),
-    costoMerma: +costoMerma.toFixed(2),
-    costoFijos: +costoFijos.toFixed(2),
-    costoTotal: +costoTotal.toFixed(2),
-    precioVenta: +precioVenta.toFixed(2),
-    utilidad: +utilidad.toFixed(2),
-    margen: +margen.toFixed(1),
+    costoProduccion: +costoProduccion.toFixed(2),
+    costoMerma:      +costoMerma.toFixed(2),
+    costoFijos:      +costoFijos.toFixed(2),
+    costoTotal:      +costoTotal.toFixed(2),
+    precioVenta:     +precioVenta.toFixed(2),
+    utilidad:        +utilidad.toFixed(2),
+    margen:          +margen.toFixed(1),
+    markup:          +markup.toFixed(2),
     // Por pieza
-    costoMaterialesU: u(costoMateriales),
-    costoManoObraU: u(costoManoObra),
-    costoMermaU: u(costoMerma),
-    costoFijosU: u(costoFijos),
-    costoTotalU: u(costoTotal),
-    precioVentaU: u(precioVenta),
-    utilidadU: u(utilidad),
+    costoProduccionU: u(costoProduccion),
+    costoMermaU:      u(costoMerma),
+    costoFijosU:      u(costoFijos),
+    costoTotalU:      u(costoTotal),
+    precioVentaU:     u(precioVenta),
+    utilidadU:        u(utilidad),
+    // Detalle desglosado (para admin que quiera ver más)
+    _costoMateriales: +costoMateriales.toFixed(2),
+    _costoManoObra:   +costoManoObra.toFixed(2),
+    _modoProceso:     order.costo_proceso != null,
   };
 }
 

@@ -370,35 +370,57 @@ async function viewOrder(id) {
       <div class="card">
         <div class="card-header">
           <h3>Costos y ganancia</h3>
-          <span class="muted" style="font-size:.82rem">${c.cantidad} pza(s)</span>
+          <span class="muted" style="font-size:.82rem">${c.cantidad} pza(s)${c._modoProceso ? ' · costo directo' : ''}</span>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Concepto</th><th class="text-right">Por pieza</th><th class="text-right">Total</th></tr></thead>
-            <tbody>
-              <tr><td>Materiales</td><td class="text-right">$${fmt(c.costoMaterialesU)}</td><td class="text-right">$${fmt(c.costoMateriales)}</td></tr>
-              <tr><td>Mano de obra</td><td class="text-right">$${fmt(c.costoManoObraU)}</td><td class="text-right">$${fmt(c.costoManoObra)}</td></tr>
-              <tr><td style="color:var(--red)">Merma</td><td class="text-right" style="color:var(--red)">$${fmt(c.costoMermaU)}</td><td class="text-right" style="color:var(--red)">$${fmt(c.costoMerma)}</td></tr>
-              <tr><td>Gastos fijos</td><td class="text-right">$${fmt(c.costoFijosU)}</td><td class="text-right">$${fmt(c.costoFijos)}</td></tr>
-              <tr style="font-weight:700;border-top:1px solid var(--border)">
-                <td>Costo total</td><td class="text-right">$${fmt(c.costoTotalU)}</td><td class="text-right">$${fmt(c.costoTotal)}</td>
-              </tr>
-              <tr style="font-weight:700">
-                <td>Precio cobrado</td><td class="text-right">$${fmt(c.precioVentaU)}</td><td class="text-right">$${fmt(c.precioVenta)}</td>
-              </tr>
-            </tbody>
-          </table>
+
+        <!-- Dos bloques: producción + gastos fijos -->
+        <div class="cost-row" style="padding:10px 0">
+          <div>
+            <div style="font-weight:600">Costos de producción</div>
+            <div style="font-size:.78rem;color:var(--text-muted)">${c._modoProceso ? 'Costo del proceso capturado' : 'Materiales + mano de obra'}${c.costoMerma > 0 ? ' + merma' : ''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700">$${fmt(c.costoProduccion + c.costoMerma)}</div>
+            <div style="font-size:.78rem;color:var(--text-muted)">$${fmt(c.costoProduccionU + c.costoMermaU)} / pieza</div>
+          </div>
         </div>
-        <div style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap">
-          <div class="stat-card ${c.margen >= 30 ? 'green' : c.margen >= 0 ? 'yellow' : 'red'}" style="flex:1;min-width:120px">
+        <div class="cost-row" style="padding:10px 0">
+          <div>
+            <div style="font-weight:600">Gastos fijos del taller</div>
+            <div style="font-size:.78rem;color:var(--text-muted)">Renta · Luz · Maquinaria · Renovación — prorateado por horas</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700">$${fmt(c.costoFijos)}</div>
+            <div style="font-size:.78rem;color:var(--text-muted)">$${fmt(c.costoFijosU)} / pieza</div>
+          </div>
+        </div>
+        <div class="cost-row" style="padding:12px 0;border-top:2px solid var(--border);margin-top:4px">
+          <div style="font-weight:700">Costo real total</div>
+          <div style="text-align:right">
+            <div style="font-weight:800;font-size:1.1rem">$${fmt(c.costoTotal)}</div>
+            <div style="font-size:.78rem;color:var(--text-muted)">$${fmt(c.costoTotalU)} / pieza</div>
+          </div>
+        </div>
+        <div class="cost-row" style="padding:8px 0">
+          <div style="font-weight:600">Lo que cobraste</div>
+          <div style="text-align:right">
+            <div style="font-weight:700;color:var(--primary)">$${fmt(c.precioVenta)}</div>
+            <div style="font-size:.78rem;color:var(--text-muted)">$${fmt(c.precioVentaU)} / pieza</div>
+          </div>
+        </div>
+
+        <!-- Resumen de ganancia -->
+        <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap">
+          <div class="stat-card ${c.margen >= 30 ? 'green' : c.margen >= 0 ? 'yellow' : 'red'}" style="flex:1;min-width:100px">
             <div class="label">% Ganancia</div>
             <div class="value">${c.margen}%</div>
+            <div class="sub">${c.markup.toFixed(1)}x el costo</div>
           </div>
-          <div class="stat-card ${c.utilidadU >= 0 ? 'green' : 'red'}" style="flex:1;min-width:120px">
+          <div class="stat-card ${c.utilidadU >= 0 ? 'green' : 'red'}" style="flex:1;min-width:100px">
             <div class="label">Ganancia / pieza</div>
             <div class="value">$${fmt(c.utilidadU)}</div>
           </div>
-          <div class="stat-card ${c.utilidad >= 0 ? 'green' : 'red'}" style="flex:1;min-width:120px">
+          <div class="stat-card ${c.utilidad >= 0 ? 'green' : 'red'}" style="flex:1;min-width:100px">
             <div class="label">Ganancia total</div>
             <div class="value">$${fmt(c.utilidad)}</div>
           </div>
@@ -689,40 +711,40 @@ async function openCompleteModal(id) {
 }
 
 $('modal-complete-save').onclick = async () => {
-  const horas = parseFloat($('c-horas').value) || 0;
+  const horas     = parseFloat($('c-horas').value) || 0;
   const costoHora = parseFloat($('c-costo-hora').value) || 0;
+  const costoProceso = $('c-costo-proceso').value !== '' ? parseFloat($('c-costo-proceso').value) : null;
 
   // Collect checklist results
   const wrap = $('c-checklist-wrap');
   let checklistLog = null;
   if (wrap && wrap.style.display !== 'none') {
     const allItems = JSON.parse(wrap.dataset.items || '[]');
-    const checked = [];
-    const unchecked = [];
+    const checked = [], unchecked = [];
     allItems.forEach((item, i) => {
       (document.getElementById(`cl-${i}`)?.checked ? checked : unchecked).push(item);
     });
-    if (allItems.length) {
-      checklistLog = `✅ Checklist (${checked.length}/${allItems.length}): ${checked.join(', ')}${unchecked.length ? ` | Pendiente: ${unchecked.join(', ')}` : ''}`;
-    }
+    if (allItems.length) checklistLog = `✅ Checklist (${checked.length}/${allItems.length}): ${checked.join(', ')}${unchecked.length ? ` | Pendiente: ${unchecked.join(', ')}` : ''}`;
   }
 
-  const notasBase = $('c-notas').value.trim();
-  const notasFinal = [notasBase, checklistLog].filter(Boolean).join('\n') || null;
+  const notasFinal = [$('c-notas').value.trim(), checklistLog].filter(Boolean).join('\n') || null;
 
   try {
-    if (horas > 0) {
+    if (horas > 0 && costoProceso === null) {
+      // Solo registrar labor si no se usó el modo costo directo
       await api(`/orders/${completeOrderId}/labor`, 'POST', {
         horas, costo_hora: costoHora, nombre_operador: currentUser.nombre,
       });
     }
-    await api(`/orders/${completeOrderId}/status`, 'PATCH', {
+    const body = {
       status: 'completado',
       horas_reales: horas,
       piezas_merma: parseInt($('c-merma-pzas').value) || 0,
       costo_merma: parseFloat($('c-merma-costo').value) || 0,
       notas_produccion: notasFinal,
-    });
+    };
+    if (costoProceso !== null) body.costo_proceso = costoProceso;
+    await api(`/orders/${completeOrderId}/status`, 'PATCH', body);
     closeModal('modal-complete');
     viewOrder(completeOrderId);
     toast('Pedido completado');
