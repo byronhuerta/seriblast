@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seriblast · Sistema de Producción</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#7c5cfc">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Seriblast">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── LOGIN ──────────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="logo">
+      <div class="name gradient">Seriblast</div>
+      <div class="sub">Sistema de Producción Interna</div>
+    </div>
+    <div class="form-group">
+      <label>Usuario</label>
+      <input type="text" id="login-user" placeholder="tu_usuario" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" id="login-btn">Entrar</button>
+    <div class="error-msg" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── APP ────────────────────────────────────────────────────────────── -->
+<div id="app" style="display:none">
+
+  <!-- Mobile overlay -->
+  <div class="overlay" id="overlay"></div>
+
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand gradient">Seriblast</div>
+      <div class="role-badge" id="sb-role"></div>
+    </div>
+
+    <div class="sidebar-nav" id="sidebar-nav">
+      <!-- injected by JS based on role -->
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <strong id="sb-nombre"></strong>
+        <span id="sb-area"></span>
+      </div>
+      <button class="btn btn-ghost btn-sm w-full" id="logout-btn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main" id="main-content">
+    <!-- Mobile topbar -->
+    <div class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <span class="gradient" style="font-weight:800">Seriblast</span>
+      <div></div>
+    </div>
+
+    <!-- Views rendered here -->
+    <div id="view"></div>
+  </div>
+</div>
+
+<!-- ── MODALS ──────────────────────────────────────────────────────────── -->
+
+<!-- New / Edit Order Modal -->
+<div class="modal-overlay hidden" id="modal-order">
+  <div class="modal">
+    <h2 id="modal-order-title">Nuevo pedido</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Cliente *</label>
+        <input type="text" id="o-cliente" placeholder="Nombre del cliente">
+      </div>
+      <div class="form-group">
+        <label>Cantidad *</label>
+        <input type="number" id="o-cantidad" value="1" min="1">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Servicio</label>
+        <select id="o-servicio">
+          <option value="">— Seleccionar —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Área</label>
+        <select id="o-area">
+          <option value="sandblast">Sandblast</option>
+          <option value="laser">Láser</option>
+          <option value="dtf_textil">DTF Textil</option>
+          <option value="dtf_uv">DTF UV</option>
+          <option value="vitrificado">Vitrificado</option>
+          <option value="bordado">Bordado</option>
+          <option value="serigrafia">Serigrafía</option>
+          <option value="diseno">Diseño Gráfico</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Precio por pieza ($)</label>
+        <input type="number" id="o-precio" value="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Fecha de entrega</label>
+        <input type="date" id="o-fecha">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Descripción del pedido</label>
+      <textarea id="o-desc" placeholder="Detalles del trabajo, colores, referencias..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Notas para producción</label>
+      <textarea id="o-notas" placeholder="Instrucciones especiales para el área de producción..." style="min-height:60px"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-order')">Cancelar</button>
+      <button class="btn btn-primary" id="modal-order-save">Guardar pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- Complete Order Modal (produccion) -->
+<div class="modal-overlay hidden" id="modal-complete">
+  <div class="modal">
+    <h2>Marcar pedido completado</h2>
+    <div class="form-group admin-field">
+      <label>Costo total del proceso ($) <small style="color:var(--text-muted);font-weight:400">— ¿Cuánto te costó producir este lote?</small></label>
+      <input type="number" id="c-costo-proceso" value="" min="0" step="0.01" placeholder="ej. 800">
+      <small style="color:var(--text-muted)">Los gastos fijos del taller (renta, luz, maquinaria) se suman automáticamente.</small>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Horas trabajadas</label>
+        <input type="number" id="c-horas" value="0" min="0" step="0.25">
+      </div>
+      <div class="form-group">
+        <label>Piezas de merma</label>
+        <input type="number" id="c-merma-pzas" value="0" min="0">
+      </div>
+    </div>
+    <div class="form-row admin-field">
+      <div class="form-group">
+        <label>Costo por hora ($)</label>
+        <input type="number" id="c-costo-hora" value="150" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Costo de merma ($)</label>
+        <input type="number" id="c-merma-costo" value="0" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notas de producción</label>
+      <textarea id="c-notas" placeholder="Observaciones del proceso..."></textarea>
+    </div>
+    <!-- Quality checklist injected here -->
+    <div id="c-checklist-wrap" style="display:none">
+      <div class="checklist-header">✅ Checklist de calidad</div>
+      <div id="c-checklist-items"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-complete')">Cancelar</button>
+      <button class="btn btn-success" id="modal-complete-save">Completar pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- User Modal -->
+<div class="modal-overlay hidden" id="modal-user">
+  <div class="modal">
+    <h2 id="modal-user-title">Nuevo usuario</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nombre completo *</label>
+        <input type="text" id="u-nombre" placeholder="Juan Pérez">
+      </div>
+      <div class="form-group">
+        <label>Usuario (login) *</label>
+        <input type="text" id="u-username" placeholder="juan.perez">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Contraseña *</label>
+        <input type="password" id="u-password" placeholder="mínimo 6 caracteres">
+      </div>
+      <div class="form-group">
+        <label>Rol *</label>
+        <select id="u-role" onchange="toggleAreaField()">
+          <option value="admin">Administrador</option>
+          <option value="ventas">Ventas / Cotización</option>
+          <option value="produccion">Producción</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" id="u-area-group">
+      <label>Área de producción *</label>
+      <select id="u-area">
+        <option value="sandblast">Sandblast</option>
+        <option value="laser">Láser</option>
+        <option value="dtf_textil">DTF Textil</option>
+        <option value="dtf_uv">DTF UV</option>
+        <option value="vitrificado">Vitrificado</option>
+        <option value="bordado">Bordado</option>
+        <option value="serigrafia">Serigrafía</option>
+        <option value="diseno">Diseño Gráfico</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-user')">Cancelar</button>
+      <button class="btn btn-primary" id="modal-user-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Service Modal -->
+<div class="modal-overlay hidden" id="modal-service">
+  <div class="modal">
+    <h2 id="modal-svc-title">Nuevo servicio</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nombre del servicio *</label>
+        <input type="text" id="s-nombre" placeholder="ej. Sandblast en Tarro">
+      </div>
+      <div class="form-group">
+        <label>Área *</label>
+        <select id="s-area">
+          <option value="sandblast">Sandblast</option>
+          <option value="laser">Láser</option>
+          <option value="dtf_textil">DTF Textil</option>
+          <option value="dtf_uv">DTF UV</option>
+          <option value="vitrificado">Vitrificado</option>
+          <option value="bordado">Bordado</option>
+          <option value="serigrafia">Serigrafía</option>
+          <option value="diseno">Diseño Gráfico</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Costo material base ($)</label>
+        <input type="number" id="s-mat" value="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Tiempo estimado (horas)</label>
+        <input type="number" id="s-tiempo" value="1" min="0.1" step="0.1">
+      </div>
+      <div class="form-group">
+        <label>Costo por hora ($)</label>
+        <input type="number" id="s-hora" value="150" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-service')">Cancelar</button>
+      <button class="btn btn-primary" id="modal-svc-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fixed cost Modal -->
+<div class="modal-overlay hidden" id="modal-fc">
+  <div class="modal">
+    <h2>Gasto fijo mensual</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Concepto *</label>
+        <input type="text" id="fc-nombre" placeholder="ej. Renta taller">
+      </div>
+      <div class="form-group">
+        <label>Monto mensual ($)</label>
+        <input type="number" id="fc-monto" value="0" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-fc')">Cancelar</button>
+      <button class="btn btn-primary" id="modal-fc-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Client Modal -->
+<div class="modal-overlay hidden" id="modal-client">
+  <div class="modal">
+    <h2 id="modal-client-title">Nuevo cliente</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nombre *</label>
+        <input type="text" id="cl-nombre" placeholder="Nombre del cliente">
+      </div>
+      <div class="form-group">
+        <label>Empresa</label>
+        <input type="text" id="cl-empresa" placeholder="Razón social (opcional)">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Teléfono</label>
+        <input type="tel" id="cl-tel" placeholder="55 1234 5678">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="cl-email" placeholder="correo@ejemplo.com">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notas</label>
+      <textarea id="cl-notas" placeholder="Referencias, preferencias, condiciones especiales..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-client')">Cancelar</button>
+      <button class="btn btn-primary" id="modal-client-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory Modal -->
+<div class="modal-overlay hidden" id="modal-inv">
+  <div class="modal">
+    <h2 id="modal-inv-title">Nuevo material</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Material *</label>
+        <input type="text" id="inv-nombre" placeholder="ej. Arena fina, Tinta blanca, Hilo negro">
+      </div>
+      <div class="form-group">
+        <label>Área</label>
+        <select id="inv-area">
+          <option value="">General</option>
+          <option value="sandblast">Sandblast</option>
+          <option value="laser">Láser</option>
+          <option value="dtf_textil">DTF Textil</option>
+          <option value="dtf_uv">DTF UV</option>
+          <option value="vitrificado">Vitrificado</option>
+          <option value="bordado">Bordado</option>
+          <option value="serigrafia">Serigrafía</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Unidad</label>
+        <input type="text" id="inv-unidad" value="pza" placeholder="pza, kg, lt, m, rollo...">
+      </div>
+      <div class="form-group">
+        <label>Costo unitario ($)</label>
+        <input type="number" id="inv-costo" value="0" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Stock actual</label>
+        <input type="number" id="inv-stock" value="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Stock mínimo (alerta)</label>
+        <input type="number" id="inv-min" value="0" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-inv')">Cancelar</button>
+      <button class="btn btn-primary" id="modal-inv-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal-overlay hidden" id="modal-pago">
+  <div class="modal">
+    <h2>Registro de pago</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Anticipo recibido ($)</label>
+        <input type="number" id="p-anticipo" value="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Método de pago</label>
+        <select id="p-metodo">
+          <option value="">— Sin especificar —</option>
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="cheque">Cheque</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Fecha de pago</label>
+        <input type="date" id="p-fecha">
+      </div>
+      <div class="form-group">
+        <label>¿Pagado completo?</label>
+        <select id="p-pagado">
+          <option value="0">No (anticipo / pendiente)</option>
+          <option value="1">Sí, liquidado</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notas de pago</label>
+      <textarea id="p-notas" placeholder="Referencia, número de transferencia..." style="min-height:60px"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-pago')">Cancelar</button>
+      <button class="btn btn-primary" id="modal-pago-save">Guardar pago</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print ticket (hidden, shown on print) -->
+<div id="print-ticket"></div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
